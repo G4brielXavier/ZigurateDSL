@@ -192,6 +192,8 @@ impl<'a> Tokenizer<'a> {
                 Primi::Kwd_Function
             } else if self.zigu_table.kwd_variable.contains(&b_val) {
                 Primi::Kwd_Variable
+            } else if self.zigu_table.kwd_modificators.contains(&b_val) {
+                Primi::Kwd_Modificators
             } else if self.zigu_table.kwd_simple.contains(&b_val) {
                 Primi::Kwd_Simple
             } else if self.zigu_table.kwd_lunig == b_val {

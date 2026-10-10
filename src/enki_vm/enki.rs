@@ -9,8 +9,9 @@ use crate::tools::sita::Sita;
 
 use std::collections::HashMap;
 
+pub type UdaValue  = HashMap<String, UdaDeclarationType>;
+pub type UdaData   = HashMap<String, UdaValue>;
 
-pub type UdaData   = HashMap<String, UdaDeclarationType>;
 pub type GishData  = HashMap<String, Vec<String>>;
 pub type LunigData = HashMap<String, HashMap<String, UdaDeclarationType>>;
 
@@ -60,10 +61,14 @@ impl EnkiVM {
 
                         let uda_key = val.as_str()[1..].to_string();
 
-                        let uda_captured = self.uda_hash.get(&uda_key)
-                            .unwrap_or_else(|| panic!("{}", ZigurateError::UdaNotFound(uda_key)));
+                        let msg = format!("Not found an uda called `{}`", &uda_key);
 
-                        match uda_captured {
+                        let uda_captured = self.uda_hash.get(&uda_key)
+                            .unwrap_or_else(|| panic!("{}`", ZigurateError::NotFound(msg)));
+
+                        let uda_value = uda_captured.get("value").unwrap();
+
+                        match uda_value {
                             UdaDeclarationType::PathProperties(props) => {
 
                                 // case1: if is a lunig
@@ -75,22 +80,32 @@ impl EnkiVM {
                                 match lunig_found {
                                     Some(lunig) => {
 
-                                        let prop = format!("!{}", &props[1]);
-
-                                        let value = lunig.get(&prop);
-
+                                        let prop = &props[1];
+                                        let value = lunig.get(&*prop);
+                                        
                                         match value {
                                             Some(val) => {
 
-                                                let lunig_value = extr_udatype_string(val);
+                                                let lunig_value = extr_udatype_string(val)?;
                                                 println!("{}", lunig_value);
+                                                continue;
 
                                             }
                                             None => {
-                                                let msg = format!("Property `{}` not found in lunig `{}`", from, prop);
-                                                panic!("{}", ZigurateError::LunigPropertyNotFoundOrNotExist(msg));
+
+                                                let gish_found_verifier = self.gish_hash.get(from);
+
+                                                match gish_found_verifier {
+                                                    Some(_) => {},
+                                                    None => {
+                                                        let msg = format!("Property `{}` not found in lunig `{}`", from, prop);
+                                                        panic!("{}", ZigurateError::PropertyNotFound(msg));
+                                                    }
+                                                }
+                                                
                                             }
                                         }
+
                                     }
                                     None => {}
                                 }
@@ -110,6 +125,7 @@ impl EnkiVM {
                                             Some(v) => {
                                                 let rest = &v[1..];
                                                 println!("{}", rest);
+                                                continue;
                                             }
                                             None => {
                                                 let msg = format!("Option `{}` not found in gish called `{}`", prop, from);
@@ -120,15 +136,15 @@ impl EnkiVM {
                                     }
                                     None => { 
                                         let msg = format!("Not found a gish called `{}`", from);
-                                        panic!("{}", ZigurateError::GishNotFound(msg));
+                                        panic!("{}", ZigurateError::NotFound(msg));
                                     }
                                 }
 
 
                             }
                             _ => {
-                                let uda_value = extr_udatype_string(uda_captured);
-                                println!("{}", uda_value);
+                                let msg_uda = extr_udatype_string(uda_value)?;
+                                println!("{}", msg_uda);
                             }
                         }
 
@@ -148,14 +164,13 @@ impl EnkiVM {
                     let k_start = val[0].to_string();
                     
                     if val.is_empty() {
-                        let msg = format!("lunig called \"{}\" not found or not exists.", k_start);
-                        panic!("{}", ZigurateError::LunigAlreadyExist(msg));
+                        println!();
+                        continue;
                     }
 
                     let rest = &val[1..];
 
-                    // Verify if exist in Lunighash
-
+                    // Verify if lunig exist 
                     let lunig_founded = self.lunig_hash.get(&k_start);
 
                     match lunig_founded {
@@ -168,13 +183,14 @@ impl EnkiVM {
                                 }
 
                                 let data = lunig.get(prop);
+                                
 
                                 match data {
                                     Some(v) => {
                                         
                                         match v {
                                             _ => {
-                                                let val = extr_udatype_string(v);
+                                                let val = extr_udatype_string(v)?;
                                                 println!("{}", val);
                                                 break
                                             }
@@ -182,8 +198,8 @@ impl EnkiVM {
 
                                     },
                                     None => {
-                                        let msg = format!("In lunig \"{}\", not found property \"{}\".", k_start, prop);
-                                        panic!("{}", ZigurateError::LunigPropertyNotFoundOrNotExist(msg))
+                                        let msg = format!("Not found property `{}` in lunig `{}`.", k_start, prop);
+                                        panic!("{}", ZigurateError::PropertyNotFound(msg))
                                     }
                                 }
 
@@ -191,8 +207,8 @@ impl EnkiVM {
 
                         },
                         None => {
-                            let msg = format!("lunig called \"{}\" not found or not exists.", k_start);
-                            panic!("{}", ZigurateError::LunigAlreadyExist(msg))
+                            let msg = format!("A lunig called `{}` not found or not exists.", k_start);
+                            panic!("{}", ZigurateError::NotFound(msg))
                         }
                     }
 
@@ -209,11 +225,16 @@ impl EnkiVM {
 
                     match uda_founded {
                         Some(_) => {
-                            let msg = format!("An Uda called \"{}\" already exists.", uda.name);
-                            panic!("{}", ZigurateError::LunigAlreadyExist(msg));
+                            let msg = format!("An Uda called `{}` already exists.", uda.name);
+                            panic!("{}", ZigurateError::AlreadyExists(msg));
                         },
                         None => {
-                            self.uda_hash.insert(uda.name, uda.value);
+                            let mut uda_value = HashMap::new();
+                            
+                            uda_value.insert("value".to_string(), uda.value);
+                            uda_value.insert("is_nisa".to_string(), UdaDeclarationType::Boolean(uda.is_nisa));
+
+                            self.uda_hash.insert(uda.name, uda_value);
                         }
                     }
 
@@ -235,19 +256,72 @@ impl EnkiVM {
                             match edit_uda.signal {
 
                                 SignalType::NewValue => {
-                                    *uda = edit_uda.new_value;
+                                    
+                                    let is_nisa = if let UdaDeclarationType::Boolean(v) = uda.get("is_nisa").unwrap() {
+                                        *v
+                                    } else {
+                                        false
+                                    };
+
+                                    if is_nisa {
+
+                                        let uda_val = uda.get_mut("value").unwrap();
+                                        
+                                        match uda_val {
+                                            UdaDeclarationType::PathProperties(pp) => {
+
+                                                let from = &pp[0];
+                                                let lunig_found = self.lunig_hash.get_mut(from);
+
+                                                match lunig_found {
+                                                    Some(lunig) => {
+
+                                                        let prop = &pp[1];
+                                                        let lunig_prop = lunig.get_mut(prop);
+
+                                                        match lunig_prop {
+                                                            Some(prop) => {
+
+                                                                *prop = edit_uda.new_value;
+                                                                
+                                                            },
+                                                            None => {
+                                                                let msg = format!("Not found property `{}` in lunig `{}`.", prop, from);
+                                                                panic!("{}", ZigurateError::PropertyNotFound(msg))          
+                                                            }
+                                                        }
+
+                                                    },
+                                                    None => {
+                                                        let msg = format!("A lunig called `{}` not found or not exists.", from);
+                                                        panic!("{}", ZigurateError::NotFound(msg))
+                                                    }
+                                                }
+                                            
+                                            },
+                                            _ => {
+                                                let msg = format!("`{}` is using modifier `@nisa` of wrong way. It's only used to LunigProperties, like: `lunig_obj.name`", &edit_uda.name);
+                                                panic!("{}", ZigurateError::SyntaxError(msg));
+                                            }
+                                        }
+                                    
+                                    } else {
+                                        let uda_val = uda.get_mut("value").unwrap();
+                                        *uda_val = edit_uda.new_value;
+                                    }
+
                                 }
 
                                 _ => {
-                                    let msg = format!("Occurred an error to change \"{}\"", edit_uda.name);
+                                    let msg = format!("Occurred an syntax error to change `{}`, verify the signal (=, +=, -=) used.", edit_uda.name);
                                     panic!("{}", ZigurateError::SyntaxError(msg));
                                 }
                             }
 
                         },
                         None => {
-                            let msg = format!("An uda called \"{}\" not exist or not found.", edit_uda.name);
-                            panic!("{}", ZigurateError::UdaNotFound(msg));
+                            let msg = format!("An uda called `{}` not exist or not found.", edit_uda.name);
+                            panic!("{}", ZigurateError::NotFound(msg));
                         }
                     }
 
@@ -289,15 +363,15 @@ impl EnkiVM {
 
                             
                             } else {
-                                let msg = format!("A lunig can accept only one propertie. To use more, see about `tud` in documentation.");
-                                panic!("{}", ZigurateError::LunigPropertyLimitExceeded(msg));
+                                let msg = format!("lunig can only accept one propertie, example: `obj.name`\n -- To use more, see about `tud` in documentation.");
+                                panic!("{}", ZigurateError::PropertyLimitExceeded(msg));
                             }
 
                         }
 
                         None => {
                             let msg = format!("A lunig called \"{}\" not exist or not found.", edit_lunig.name);
-                            panic!("{}", ZigurateError::UdaNotFound(msg));
+                            panic!("{}", ZigurateError::NotFound(msg));
                         }
 
                     }
@@ -313,8 +387,8 @@ impl EnkiVM {
                 EnkiInstruction::INST_LUNIG_DECL(lunig) => {
 
                     if self.lunig_hash.contains_key(&lunig.id) {
-                        let msg = format!("lunig called \"{}\" already exists.", lunig.id);
-                        panic!("{}", ZigurateError::LunigAlreadyExist(msg))
+                        let msg = format!("A lunig called `{}` already exists.", lunig.id);
+                        panic!("{}", ZigurateError::AlreadyExists(msg))
                     }
 
                     self.lunig_hash.insert(lunig.id, lunig.data);
@@ -326,7 +400,7 @@ impl EnkiVM {
 
 
 
-
+                // insert a new instruction in pipe-line in execution-time
                 EnkiInstruction::INST_ANKI(anki) => {
 
                     let instruct = anki.enki_instr;
@@ -351,7 +425,7 @@ impl EnkiVM {
 
 
 
-
+                // remove an uda in execution-time (anki.:kud())
                 EnkiInstruction::INST_CUT_UDA(data) => {
   
                     if data.len() == 1 {
@@ -384,6 +458,8 @@ impl EnkiVM {
 
                         }
 
+                        continue;
+
                     }
 
                 }
@@ -393,7 +469,7 @@ impl EnkiVM {
 
 
 
-
+                // remove a lunig in execution-time (with anki.:gaz())
                 EnkiInstruction::INST_GAZ_LUNIG(data) => {
 
                     if data.len() == 1 {
@@ -410,6 +486,21 @@ impl EnkiVM {
 
                         }
 
+                    } else {
+
+                        for lunig_k in data.iter() {
+
+                            let signal = lunig_k.chars().next().unwrap();
+
+                            if signal == '!' {
+                                let rest = lunig_k[1..].to_string();
+                                self.lunig_hash.remove(&rest);
+                            }
+
+                        }
+
+                        continue;
+
                     }
 
                 }
@@ -422,6 +513,7 @@ impl EnkiVM {
 
                 EnkiInstruction::INST_MARU(maru) => {
 
+                    // read the path answered
                     let curr_path = self.sita.current_dir()
                         .map_err(|e| ZigurateError::IOError(e))?;
 
@@ -434,13 +526,22 @@ impl EnkiVM {
                     let file_content = self.sita.read_file(path_file)
                         .map_err(|e| ZigurateError::IOError(e))?;
 
-                    let bytes_content = file_content.as_bytes();
 
-                    let enki_instructions = zigurage_compiler_simple(bytes_content)?;
+
+                    // get the file content as bytes
+                    let bytes_content = file_content.as_bytes();
 
                     let curr_ip = self.ip;
 
-                    for inst in enki_instructions.iter().rev() {
+
+
+                    // deliver the byte content to EnkiCompiler read
+                    let new_enki_instructions = zigurage_compiler_simple(bytes_content)?;
+
+
+
+                    // insert the newest instructions in main list's instructions 
+                    for inst in new_enki_instructions.iter().rev() {
                         self.instructions.insert(curr_ip, inst.clone());
                     }
 
@@ -466,7 +567,7 @@ impl EnkiVM {
                     
                         Some(_) => {
                             let msg = format!("Already exist a gish called `{}`", gish.id);
-                            panic!("{}", ZigurateError::GishAlreadyExist(msg));
+                            panic!("{}", ZigurateError::AlreadyExists(msg));
                         }
                         None => {
                             self.gish_hash.insert(gish.id.to_string(), gish.enums);

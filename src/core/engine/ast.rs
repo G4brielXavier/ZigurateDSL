@@ -3,6 +3,7 @@ use std::{print, println};
 
 use colored::Colorize;
 
+use crate::core::utils::primi::Primi::Kwd_Modificators;
 use crate::core::{error::ZigurateError};
 
 use crate::core::utils::token::Token;
@@ -80,6 +81,52 @@ impl<'a> AST<'a> {
 
 
 
+    pub fn parse_list(&mut self) -> Result<EXPR_Primi, ZigurateError> {
+
+        let mut data = Vec::new();
+
+        while self.see().is_some() && from_utf8(self.see().unwrap().value).unwrap().chars().next().unwrap() != ']' {
+
+            let virg_sepa = self.see();
+
+            match virg_sepa {
+
+                Some(v) => {
+                    match v.primi {
+                        Primi::Symbol => {
+
+                            let v = from_utf8(v.value)?.chars().next().unwrap();
+
+                            if v == ',' {
+                                self.step();
+                            } else {
+                                break
+                            }
+
+                        }
+                        _ => {
+                            let val_tk = self.parse_expr()?;
+                            data.push(val_tk);
+                            continue;
+                        }
+                    }
+                }
+
+                None => {
+                    break
+                }
+
+            }
+
+        }
+
+
+        self.step();
+
+        let struct_data = EXPR_Primi::Vector(data);
+        return Ok(struct_data)
+
+    }
 
 
 
@@ -250,9 +297,9 @@ impl<'a> AST<'a> {
 
         let tk = self.step();
 
-
         match tk.primi {
             
+
             Primi::String => {
 
                 let value = from_utf8(tk.value)?.to_string();
@@ -261,6 +308,7 @@ impl<'a> AST<'a> {
 
             },
             
+
             
             Primi::Integer => {
 
@@ -269,6 +317,7 @@ impl<'a> AST<'a> {
                 Ok(expr) 
 
             },
+
 
 
             Primi::Floating => {
@@ -280,6 +329,7 @@ impl<'a> AST<'a> {
             },
 
 
+
             Primi::Boolean => {
 
                 let value = from_utf8(tk.value).unwrap().parse::<bool>().unwrap();
@@ -287,6 +337,7 @@ impl<'a> AST<'a> {
                 Ok(expr) 
 
             },
+
 
 
             Primi::Identifier => {
@@ -329,6 +380,7 @@ impl<'a> AST<'a> {
             },
 
 
+
             Primi::Kwd_Simple => {
 
                 let value = from_utf8(tk.value)?.to_string();
@@ -338,11 +390,23 @@ impl<'a> AST<'a> {
             },
             
 
+
             Primi::Symbol => {
 
-                let value = from_utf8(tk.value)?.chars().next().unwrap();
-                let expr = EXPR_Primi::Symbol(value);
-                Ok(expr)
+                let sym_char = from_utf8(tk.value)?.chars().next().unwrap();
+
+                if sym_char == '[' {
+
+                    let data = self.parse_list()?;
+                    Ok(data)
+
+                } else {
+
+                    let value = from_utf8(tk.value)?.chars().next().unwrap();
+                    let expr = EXPR_Primi::Symbol(value);
+                    Ok(expr)
+
+                }
 
             }
             
@@ -359,6 +423,7 @@ impl<'a> AST<'a> {
 
         let node = self.step().to_owned();
 
+
         match node.primi {
 
 
@@ -373,7 +438,7 @@ impl<'a> AST<'a> {
 
                     let tok_now_val = from_utf8(tok_now.value)?.chars().next().unwrap();
 
-                    println!("{:?}", tok_now_val);
+                    // println!("{:?}", tok_now_val);
 
 
                     match tok_now.primi {
@@ -470,12 +535,103 @@ impl<'a> AST<'a> {
                     let uda_name = from_utf8(ident.value)?.to_string();
 
                     let uda_signal = from_utf8(self.step().to_owned().value)?.to_string();
-                    let uda_value = self.parse_expr()?;
 
-                    let uda = TEMEM_TempVariable { name: uda_name, signal: uda_signal, value: uda_value };
-                    let zilamma = STRT_Zilamma::DeclUda(uda);
+                    let sign_modificator = self.see();
 
-                    return Ok(zilamma)
+                    match sign_modificator {
+                        Some(e) => {
+
+                            match e.primi {
+
+                                Primi::Symbol => {
+
+                                    let v_sign_char = from_utf8(e.value)?.chars().next().unwrap();
+
+                                    if v_sign_char == '@' {
+
+                                        self.step();
+
+                                        match self.see() {
+
+                                            Some(modifier) => {
+
+                                                let modifier_name = from_utf8(modifier.value)?;
+
+                                                match modifier.primi {
+
+                                                    Kwd_Modificators => {
+
+                                                        if modifier_name == "nisa" {
+
+                                                            self.step();
+
+                                                            let uda_value = self.parse_expr()?;
+
+                                                            let uda = TEMEM_TempVariable { 
+                                                                name: uda_name, 
+                                                                signal: uda_signal, 
+                                                                value: uda_value, 
+                                                                is_nisa: true 
+                                                            };
+
+                                                            let zilamma = STRT_Zilamma::DeclUda(uda);
+
+                                                            return Ok(zilamma)
+
+                                                        } else {
+                                                            let msg = format!("You used `@` but `{}` is unknown or not considered modifier.", modifier_name);
+                                                            return Err(ZigurateError::SyntaxError(msg))
+                                                        }
+
+                                                    }
+
+                                                    _ => {
+                                                        let msg = format!("You used `@` but `{}` is unknown or not considered modifier.", modifier_name);
+                                                        return Err(ZigurateError::SyntaxError(msg))
+                                                    }
+
+                                                }
+
+                                            }
+                                            None => {
+                                                let msg = format!("You used `@` but the modificator is unknown or not mentioned.");
+                                                return Err(ZigurateError::SyntaxError(msg))
+                                            }
+                                        }
+
+
+                                    } else {
+                                        let msg = format!("For modificator was expected `@`, got wrong");
+                                        return Err(ZigurateError::SyntaxError(msg))
+                                    }
+
+                                }
+
+                                _ => {
+
+                                    let uda_value = self.parse_expr()?;
+
+                                    let uda = TEMEM_TempVariable { 
+                                        name: uda_name, 
+                                        signal: uda_signal, 
+                                        value: uda_value, 
+                                        is_nisa: false 
+                                    };
+
+                                    let zilamma = STRT_Zilamma::DeclUda(uda);
+
+                                    return Ok(zilamma)
+
+                                }
+
+                            }
+
+                        } 
+                        None => {
+                            let msg = format!("Expected a value for `{}`. Got nil.", uda_name);
+                            return Err(ZigurateError::SyntaxError(msg))
+                        }
+                    }
 
                 }
 
@@ -680,6 +836,9 @@ impl<'a> AST<'a> {
                     }
 
                 }
+
+
+
 
                 _ => todo!()
 

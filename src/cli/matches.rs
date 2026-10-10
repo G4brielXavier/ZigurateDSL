@@ -24,7 +24,7 @@ pub fn match_command(cmd: &Commands) -> Result<(), ZigurateError> {
     let sita = Sita::gibil();
 
     let zigurate_name = format!("{}", "/|\\ ZIGURATE");
-    let status_stable = format!("{}", "(beta.2)".yellow().italic());
+    let status_stable = format!("{}", "(beta 3)".yellow().italic());
     let version_zigurate = format!("{} — UR1 {}", zigurate_name.bold(), status_stable);
 
     match cmd {
@@ -77,7 +77,7 @@ pub fn match_command(cmd: &Commands) -> Result<(), ZigurateError> {
                     println!("--- {} {} {}", "cmd:".bold().yellow(), cmd.yellow().italic(), "!executed".bold().green());
                     println!("--- {} {}", "in:".bold().yellow(), curr_path.display().to_string().underline());
                     println!();
-                    println!("{} {}", "Running EnkiVM...".bright_blue().bold(), msg_2);
+                    println!("{} {}", "Compiling EnkiVM...".bright_blue().bold(), msg_2);
 
                     // MAIN
 
@@ -131,9 +131,9 @@ pub fn match_command(cmd: &Commands) -> Result<(), ZigurateError> {
 
                 let cmd2 = format!("cd .\\{}\\", project_name);
 
-                let msg_2 = format!("Project `{}` was created.", project_name.yellow().italic());
-                let msg_3 = format!("Now, use `{}`", cmd2.yellow().italic());
-                let msg_4 = format!("After, run `{}`", "enki run".yellow().italic());
+                let msg_2 = format!("Project {} was created.", project_name.yellow().italic());
+                let msg_3 = format!("Now, use {}", cmd2.yellow().italic());
+                let msg_4 = format!("After, run {}", "enki run".yellow().italic());
 
                 println!();
                 println!("{}", version_zigurate);
@@ -151,7 +151,7 @@ pub fn match_command(cmd: &Commands) -> Result<(), ZigurateError> {
 
                 let cmd = format!("enki create {}", project_name);
 
-                let msg_2 = format!("Already exists a project called `{}`", project_name.yellow().italic());
+                let msg_2 = format!("Already exists a project called {}", project_name.yellow().italic());
                 
                 println!();
                 println!("{}", version_zigurate);

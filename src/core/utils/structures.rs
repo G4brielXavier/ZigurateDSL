@@ -28,9 +28,12 @@ pub struct TEMEM_Function {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct TEMEM_TempVariable {
+
     pub name: String,
     pub signal: String,
-    pub value: EXPR_Primi
+    pub value: EXPR_Primi,
+    pub is_nisa: bool
+
 }
 
 
@@ -43,9 +46,11 @@ pub struct TEMEM_TempVariable {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct TEMEM_EditVariable {
+
     pub name: String,
     pub signal: SignalType,
     pub value: EXPR_Primi
+
 }
 
 

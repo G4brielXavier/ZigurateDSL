@@ -2,12 +2,13 @@
 use core::panic;
 use std::collections::HashMap;
 use std::fmt::format;
-use std::println;
+use std::{convert, println};
+use std::any::Any;
 
 use crate::core::error::ZigurateError;
 use crate::core::utils::primi::{EXPR_Primi, STRT_Zilamma};
 
-use crate::enki_vm::{EnkiInstruction, UdaDeclarationType};
+use crate::enki_vm::{EnkiInstruction, UdaDeclarationType, UniqueTypedVectors};
 
 
 use crate::enki_vm::{
@@ -19,6 +20,17 @@ use crate::enki_vm::{
     MARU,
     GISH
 };
+
+
+pub fn get_expr_id(expr: EXPR_Primi) -> &'static str {
+    match expr {
+        EXPR_Primi::Boolean(_) => "bool",
+        EXPR_Primi::String(_) => "string",
+        EXPR_Primi::Integer(_) => "integer",
+        EXPR_Primi::Floating(_) => "floating",
+        _ => ""
+    }
+}
 
 
 pub fn extr_expr_string(expr: EXPR_Primi, categ: &str) -> String {
@@ -45,16 +57,91 @@ pub fn extr_expr_string(expr: EXPR_Primi, categ: &str) -> String {
 }
 
 
-pub fn extr_udatype_string(udadecl: &UdaDeclarationType) -> String {
+pub fn extr_udatype_string(udadecl: &UdaDeclarationType) -> Result<String, ZigurateError> {
 
     match udadecl {
         
-        UdaDeclarationType::String  (e) => e.to_string(),
-        UdaDeclarationType::Integer (i)    => i.to_string(),
-        UdaDeclarationType::Floating(f)    => f.to_string(),
-        UdaDeclarationType::Boolean (f)   => f.to_string(),
+        UdaDeclarationType::String  (v) => return Ok(v.to_string()),
+        UdaDeclarationType::Integer (v)    => return Ok(v.to_string()),
+        UdaDeclarationType::Floating(v)    => return Ok(v.to_string()),
+        UdaDeclarationType::Boolean (v)   => return Ok(v.to_string()),
+        UdaDeclarationType::PathProperties(pp) => return Ok(format!("{}.{}", pp[0], pp[1])),
+        UdaDeclarationType::Vector(vec)  => {
+            
+            let mut temporary_vec_expr = Vec::with_capacity(vec.len());
 
-        _ => "".to_string()
+            if vec.is_empty() {
+                return Ok("[]".to_string())
+            }
+
+            let pattern_type = get_expr_id(vec[0].clone());
+
+            for expr in vec.iter() {
+
+                let patt_curr = get_expr_id(expr.clone());
+
+                if pattern_type == patt_curr {
+                    let decl_enki_type = convert_to_uda_declaration(expr.clone());
+                    temporary_vec_expr.push(decl_enki_type);
+                } else {
+                    let msg = format!("It's mixed. Expected type `{}`, but found `{}`. Try obey the type's value of first value in list.", pattern_type, patt_curr);
+                    return Err(ZigurateError::VectorTypesValueIsMixed(msg));
+                }
+
+            }
+
+            let real_values: Result<UniqueTypedVectors, ZigurateError> = match &temporary_vec_expr[0] {
+                
+                UdaDeclarationType::Boolean(_) => {
+                    let mut v = Vec::new();
+                    for it in &temporary_vec_expr {
+                        if let UdaDeclarationType::Boolean(val) = it { v.push(*val); }
+                        else { return Err(ZigurateError::SyntaxError("".into())); }
+                    }
+                    Ok(UniqueTypedVectors::VecBoolean(v))
+                },
+
+                UdaDeclarationType::Integer(_) => {
+                    let mut v = Vec::new();
+                    for it in &temporary_vec_expr {
+                        if let UdaDeclarationType::Integer(val) = it { v.push(*val); }
+                        else { return Err(ZigurateError::SyntaxError("".into())); }
+                    }
+                    Ok(UniqueTypedVectors::VecInteger(v))
+                },
+
+                UdaDeclarationType::Floating(_) => {
+                    let mut v = Vec::new();
+                    for it in &temporary_vec_expr {
+                        if let UdaDeclarationType::Floating(val) = it { v.push(*val); }
+                        else { return Err(ZigurateError::SyntaxError("".into())); }
+                    }
+                    Ok(UniqueTypedVectors::VecFloating(v))
+                },
+
+                UdaDeclarationType::String(_) => {
+                    let mut v = Vec::new();
+                    for it in &temporary_vec_expr {
+                        if let UdaDeclarationType::String(val) = it { v.push(val.clone()); }
+                        else { return Err(ZigurateError::SyntaxError("".into())); }
+                    }
+                    Ok(UniqueTypedVectors::VecString(v))
+                },
+
+                _ => Err(ZigurateError::TypeNotSupported("Type value not supported by Vectors".into()))
+
+            };
+
+            match real_values.unwrap() {
+                UniqueTypedVectors::VecBoolean(v) => Ok(format!("{:?}", v)),
+                UniqueTypedVectors::VecFloating(v) => Ok(format!("{:?}", v)),
+                UniqueTypedVectors::VecInteger(v) => Ok(format!("{:?}", v)),
+                UniqueTypedVectors::VecString(v) => Ok(format!("{:?}", v)),
+            }
+
+        }
+
+        _ => Ok("".to_string())
     }
 
 }
@@ -68,6 +155,7 @@ pub fn convert_to_uda_declaration(expr: EXPR_Primi) -> UdaDeclarationType {
         EXPR_Primi::Floating      (f)         => UdaDeclarationType::Floating(f),
         EXPR_Primi::Boolean       (f)        => UdaDeclarationType::Boolean(f),
         EXPR_Primi::PathProperties(f) => UdaDeclarationType::PathProperties(f),
+        EXPR_Primi::Vector        (vec) => UdaDeclarationType::Vector(vec),
 
         _ => UdaDeclarationType::String("".to_string())
     }
@@ -181,12 +269,15 @@ pub fn enki_compiler(ast: Vec<STRT_Zilamma>) -> Result<Vec<EnkiInstruction>, Zig
                 
                 let uda_name = &uda.name;
                 let uda_signal = &uda.signal;
+                let uda_is_nisa = &uda.is_nisa;
+
                 let uda_value = convert_to_uda_declaration(uda.value.clone());
 
                 let uda_m = UDA {
                     name: uda_name.to_string(),
                     signal: uda_signal.to_string(),
-                    value: uda_value
+                    value: uda_value,
+                    is_nisa: *uda_is_nisa
                 };
 
                 let enki_sar = EnkiInstruction::INST_UDA_DECL(uda_m);

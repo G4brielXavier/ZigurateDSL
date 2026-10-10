@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::core::utils::primi::SignalType;
+use crate::core::utils::primi::{EXPR_Primi, SignalType};
 
 pub mod compiler;
 pub mod enki;
@@ -19,9 +19,12 @@ pub mod enki;
 
 #[derive(Debug, Clone)]
 pub struct UDA {
+
     pub name: String,
     pub signal: String,
-    pub value: UdaDeclarationType
+    pub value: UdaDeclarationType,
+    pub is_nisa: bool
+
 }
 
 
@@ -136,18 +139,37 @@ pub struct GISH {
 
 
 
+
+
+
+
+
+
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum UniqueTypedVectors {
+    VecString(Vec<String>),
+    VecInteger(Vec<i32>),
+    VecFloating(Vec<f32>),
+    VecBoolean(Vec<bool>)
+}
+
+
+
+
+
+
+
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum UdaDeclarationType {
     String(String),
     Integer(i32),
     Floating(f32),
     Boolean(bool),
+    Vector(Vec<EXPR_Primi>),
     PathProperties(Vec<String>)
 }
-
-
-
-
 
 
 

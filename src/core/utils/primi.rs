@@ -4,6 +4,8 @@ use crate::core::utils::structures::{
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Primi {
+    
+    Identifier,
 
     Symbol,
     Integer,
@@ -18,8 +20,7 @@ pub enum Primi {
     Kwd_Anki,
     Kwd_Maru,
     Kwd_Gish,
-
-    Identifier
+    Kwd_Modificators,
 
 }
 
@@ -54,6 +55,7 @@ pub enum EXPR_Primi {
     Symbol(char),
     Identifier(String),
 
+    Vector(Vec<EXPR_Primi>),
     PathProperties(Vec<String>),
 
     KWD_SIMPLE(String),
