@@ -23,6 +23,16 @@ pub struct TEMEM_Function {
 
 
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct TEMEM_ObjFunction {
+    pub obj_name: String,
+    pub name: String,
+    pub args: Vec<EXPR_Primi>
+}
+
+
+
+
 
 
 
@@ -125,3 +135,7 @@ pub struct TEMEM_Gish {
     pub id: String,
     pub enums: Vec<EXPR_Primi>
 }
+
+
+
+

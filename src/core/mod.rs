@@ -33,9 +33,11 @@ pub fn zigurage_compiler_simple(byte_content: &[u8]) -> Result<Vec<EnkiInstructi
     let ast = ast.create()?;
 
     // println!("{:?}", ast);
-
+    
     let sig_enki_byte = enki_compiler(ast)?;
 
+    // println!("{:?}", sig_enki_byte);
+    
     Ok(sig_enki_byte)
 
 }

@@ -24,7 +24,7 @@ pub fn match_command(cmd: &Commands) -> Result<(), ZigurateError> {
     let sita = Sita::gibil();
 
     let zigurate_name = format!("{}", "/|\\ ZIGURATE");
-    let status_stable = format!("{}", "(beta 3)".yellow().italic());
+    let status_stable = format!("{}", "(beta 4)".yellow().italic());
     let version_zigurate = format!("{} — UR1 {}", zigurate_name.bold(), status_stable);
 
     match cmd {

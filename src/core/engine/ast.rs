@@ -8,18 +8,11 @@ use crate::core::{error::ZigurateError};
 
 use crate::core::utils::token::Token;
 use crate::core::utils::primi::{EXPR_Primi, Primi, SignalType};
-use crate::core::utils::primi::STRT_Zilamma;
+use crate::core::utils::primi::STRT_Zilamma::{self, ObjCallFunction};
 
 
 use crate::core::utils::structures::{
-    TEMEM_Anki, 
-    TEMEM_EditLunig, 
-    TEMEM_EditVariable, 
-    TEMEM_Function, 
-    TEMEM_Lunig, 
-    TEMEM_TempVariable, 
-    TEMEM_Maru,
-    TEMEM_Gish
+    TEMEM_Anki, TEMEM_EditLunig, TEMEM_EditVariable, TEMEM_Function, TEMEM_Gish, TEMEM_Lunig, TEMEM_Maru, TEMEM_ObjFunction, TEMEM_TempVariable
 };
 
 
@@ -270,13 +263,12 @@ impl<'a> AST<'a> {
 
                 match expr {
                 
-                    EXPR_Primi::String(val) => args.push(EXPR_Primi::String(val)),
-                    EXPR_Primi::Boolean(val) => args.push(EXPR_Primi::Boolean(val)),
-                    EXPR_Primi::Integer(val) => args.push(EXPR_Primi::Integer(val)),
-                    EXPR_Primi::Floating(val) => args.push(EXPR_Primi::Floating(val)),
-                    
-                    EXPR_Primi::Identifier(val) => args.push(EXPR_Primi::Identifier(val)),
-
+                    EXPR_Primi::String        (val)      => args.push(EXPR_Primi::String        (val)),
+                    EXPR_Primi::Boolean       (val)        => args.push(EXPR_Primi::Boolean       (val)),
+                    EXPR_Primi::Integer       (val)         => args.push(EXPR_Primi::Integer       (val)),
+                    EXPR_Primi::Floating      (val)         => args.push(EXPR_Primi::Floating      (val)),
+                    EXPR_Primi::ArrayIndexer  (val)       => args.push(EXPR_Primi::ArrayIndexer  (val)),
+                    EXPR_Primi::Identifier    (val)      => args.push(EXPR_Primi::Identifier    (val)),
                     EXPR_Primi::PathProperties(val) => args.push(EXPR_Primi::PathProperties(val)),
                     
                     _ => todo!()
@@ -299,6 +291,7 @@ impl<'a> AST<'a> {
 
         match tk.primi {
             
+
 
             Primi::String => {
 
@@ -354,13 +347,35 @@ impl<'a> AST<'a> {
 
                         match tk.primi {
                             Primi::Symbol => {
-                                if tok_now_val == '.' {
-                                    let expr = self.parse_properties(&value)?;
-                                    Ok(expr)
-                                } else {
-                                    let expr = EXPR_Primi::Identifier(value);
-                                    Ok(expr) 
+                                
+                                match tok_now_val {
+                                    '.' => {
+                                        let expr = self.parse_properties(&value)?;
+                                        return Ok(expr)
+                                    },
+                                    '[' => {
+                                        let expr = self.parse_expr()?;
+
+                                        match expr {
+                                            EXPR_Primi::Integer(v) => {
+                                                let arr_info_indexer = vec![value, v.to_string()];
+                                                let f_expr = EXPR_Primi::ArrayIndexer(arr_info_indexer);
+
+                                                return Ok(f_expr)
+                                            }
+                                            _ => {
+                                                let msg = format!("Unknown error in array structure.");
+                                                return Err(ZigurateError::SyntaxError(msg))
+                                            }
+                                        }
+
+                                    },
+                                    _ => {
+                                        let expr = EXPR_Primi::Identifier(value);
+                                        return Ok(expr) 
+                                    }
                                 }
+
                             }
                             _ => {
                                 let expr = EXPR_Primi::Identifier(value);
@@ -397,8 +412,45 @@ impl<'a> AST<'a> {
 
                 if sym_char == '[' {
 
-                    let data = self.parse_list()?;
-                    Ok(data)
+                    let nxt_tk = self.see_next();
+
+                    match nxt_tk {
+                        Some(v) => {
+
+                            let val = from_utf8(v.value)?;
+
+                            match val {
+                                "," => {
+
+                                    let data = self.parse_list()?;
+                                    return Ok(data)
+
+                                },
+                                "]" => {
+
+                                    let tk_index = self.step();
+                                    let tk_index_val = from_utf8(tk_index.value)?.parse::<i32>().unwrap();
+                                    let expr = EXPR_Primi::Integer(tk_index_val);
+
+                                    self.step();
+                                    
+                                    return Ok(expr)
+                                
+                                },
+                                &_ => {
+
+                                    let msg = format!("Unknown error in array structure.");
+                                    return Err(ZigurateError::SyntaxError(msg))
+
+                                }
+                            }
+
+                        }
+                        None => {
+                            let msg = format!("Unknown error in array structure.");
+                            return Err(ZigurateError::SyntaxError(msg))
+                        }
+                    }
 
                 } else {
 
@@ -431,12 +483,15 @@ impl<'a> AST<'a> {
 
                     // case1: name = 5
                     // case2: obj.name = 5
+                    // case3: name.:func()
 
                     let tr_cal_name = from_utf8(node.value)?.to_string(); // c1=name | c2=obj
 
                     let tok_now = self.see().unwrap();
+                    let tok_next = self.see_next().unwrap();
 
                     let tok_now_val = from_utf8(tok_now.value)?.chars().next().unwrap();
+                    let tok_next_val = from_utf8(tok_next.value)?.chars().next().unwrap();
 
                     // println!("{:?}", tok_now_val);
 
@@ -460,7 +515,7 @@ impl<'a> AST<'a> {
 
                                 Ok(zilamma)
                                 
-                            } else if tok_now_val == '.' {
+                            } else if tok_now_val == '.' && tok_next_val != ':' {
 
                                 self.step(); // '.'
                                 let properties = self.parse_properties(&tr_cal_name)?;
@@ -499,6 +554,23 @@ impl<'a> AST<'a> {
                                         Err(ZigurateError::SyntaxError("SignalType expected. \"=\", \"+=\" or others.".to_string()))
                                     }
                                 }
+                            
+
+                            } else if tok_now_val == '.' && tok_next_val == ':' {
+
+                                self.step(); // '.'
+                                self.step(); // ':'
+
+                                let func_name = from_utf8(self.step().value).unwrap().to_string();
+
+                                self.step(); // (
+
+                                let args = self.parse_call_fnc()?;
+
+                                let fnc_call = TEMEM_ObjFunction { obj_name: tr_cal_name, name: func_name, args: args };
+
+                                let zilamma = ObjCallFunction(fnc_call);
+                                Ok(zilamma)
 
                             } else {
                                 Err(ZigurateError::SyntaxError("SignalType expected. \"=\", \"+=\" or others.".to_string()))
@@ -601,8 +673,18 @@ impl<'a> AST<'a> {
 
 
                                     } else {
-                                        let msg = format!("For modificator was expected `@`, got wrong");
-                                        return Err(ZigurateError::SyntaxError(msg))
+                                        let uda_value = self.parse_expr()?;
+
+                                        let uda = TEMEM_TempVariable { 
+                                            name: uda_name, 
+                                            signal: uda_signal, 
+                                            value: uda_value, 
+                                            is_nisa: false 
+                                        };
+
+                                        let zilamma = STRT_Zilamma::DeclUda(uda);
+
+                                        return Ok(zilamma)
                                     }
 
                                 }

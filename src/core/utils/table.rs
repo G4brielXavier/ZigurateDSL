@@ -1,6 +1,6 @@
 pub struct Table {
 
-    pub kwd_functions: [&'static [u8]; 3],
+    pub kwd_functions: [&'static [u8]; 6],
     pub kwd_modificators: [&'static [u8]; 1],
     pub kwd_variable:  [&'static [u8]; 1],
     pub kwd_simple:    [&'static [u8]; 2],
@@ -20,6 +20,9 @@ impl Table {
                 b"silim",
                 b"kud",
                 b"gaz",
+                b"push",
+                b"pop",
+                b"clear"
             ],
             kwd_modificators: [
                 b"nisa"

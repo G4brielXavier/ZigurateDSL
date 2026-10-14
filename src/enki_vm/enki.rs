@@ -1,7 +1,9 @@
 
-use std::{path::PathBuf, println};
+use std::{any::Any, path::PathBuf, println};
 
-use crate::{core::{error::ZigurateError, utils::primi::SignalType}, enki_vm::{EnkiInstruction, UdaDeclarationType}};
+use dirs::picture_dir;
+
+use crate::{core::{error::ZigurateError, utils::primi::{EXPR_Primi, SignalType}}, enki_vm::{EnkiInstruction, UdaDeclarationType, compiler::{convert_to_uda_declaration, extr_expr_string, get_expr_id}}};
 use crate::enki_vm::compiler::extr_udatype_string;
 use crate::core::zigurage_compiler_simple;
 use crate::cli::get_enki_data;
@@ -14,6 +16,29 @@ pub type UdaData   = HashMap<String, UdaValue>;
 
 pub type GishData  = HashMap<String, Vec<String>>;
 pub type LunigData = HashMap<String, HashMap<String, UdaDeclarationType>>;
+
+
+
+
+
+fn val_to_expr(val: String) -> EXPR_Primi {
+
+    if let Ok(v) = val.parse::<bool>() {
+        return EXPR_Primi::Boolean(v)
+    }
+
+    if let Ok(v) = val.parse::<i32>() {
+        return EXPR_Primi::Integer(v)
+    }
+
+    if let Ok(v) = val.parse::<f32>() {
+        return EXPR_Primi::Floating(v)
+    }
+
+
+    EXPR_Primi::String(val)
+
+}
 
 
 
@@ -61,10 +86,28 @@ impl EnkiVM {
 
                         let uda_key = val.as_str()[1..].to_string();
 
-                        let msg = format!("Not found an uda called `{}`", &uda_key);
+                        let splitted_key = uda_key.split_once("-");
 
-                        let uda_captured = self.uda_hash.get(&uda_key)
-                            .unwrap_or_else(|| panic!("{}`", ZigurateError::NotFound(msg)));
+                        let mut uda_captured;
+                        let mut arr_idx: usize;
+
+                        if let Some((k, idx)) = splitted_key {
+
+                            arr_idx = idx.parse::<usize>().unwrap();
+
+                            let msg = format!("Not found an uda called `{}`", &k);
+                            uda_captured = self.uda_hash.get(&k.to_string())
+                                .unwrap_or_else(|| panic!("{}`", ZigurateError::NotFound(msg)));
+
+                        } else {
+
+                            arr_idx = 888888 as usize;
+
+                            let msg = format!("Not found an uda called `{}`", &uda_key);
+                            uda_captured = self.uda_hash.get(&uda_key)
+                                .unwrap_or_else(|| panic!("{}`", ZigurateError::NotFound(msg)));
+
+                        }
 
                         let uda_value = uda_captured.get("value").unwrap();
 
@@ -142,8 +185,51 @@ impl EnkiVM {
 
 
                             }
+                            UdaDeclarationType::Vector(vec_data) => {
+
+                                if arr_idx < 888888 && arr_idx > vec_data.len() {
+                                    let msg = format!("Array has {}, and index provided is {}. Limit exceeded.", vec_data.len(), arr_idx);
+                                    panic!("{}", ZigurateError::ArrayIndexExceeded(msg));
+                                }
+
+                                let ele_in_vec = vec_data.get(arr_idx);
+
+                                match ele_in_vec {
+                                    Some(v) => {
+
+                                        let id_expr = get_expr_id(v.clone());
+                                        let uda_decl = convert_to_uda_declaration(v.clone());
+                                        let data = extr_udatype_string(&uda_decl)?;
+
+                                        match id_expr {
+
+                                            "integer" => {
+                                                println!("{:?}", data.parse::<i32>().unwrap());
+                                            },
+                                            "string" => {
+                                                println!("{}", data)
+                                            }
+                                            "floating" => {
+                                                println!("{:?}", data.parse::<f32>().unwrap())
+                                            },
+                                            "bool" => {
+                                                println!("{}", data.parse::<bool>().unwrap())
+                                            }
+
+                                            &_ => {
+
+                                            }
+                                        }
+
+                                    }
+                                    None => {
+
+                                    }
+                                }
+
+                            }
                             _ => {
-                                let msg_uda = extr_udatype_string(uda_value)?;
+                                let msg_uda = extr_udatype_string(&uda_value)?;
                                 println!("{}", msg_uda);
                             }
                         }
@@ -230,11 +316,60 @@ impl EnkiVM {
                         },
                         None => {
                             let mut uda_value = HashMap::new();
-                            
-                            uda_value.insert("value".to_string(), uda.value);
-                            uda_value.insert("is_nisa".to_string(), UdaDeclarationType::Boolean(uda.is_nisa));
 
-                            self.uda_hash.insert(uda.name, uda_value);
+                            match uda.value {
+
+                                UdaDeclarationType::ArrayIndexer(arr) => {
+
+                                    let uda_found = self.uda_hash.get(&arr[0]);
+                                    
+                                    match uda_found {
+
+                                        Some(uda_f) => {
+
+                                            let values = uda_f.get("value").unwrap();
+
+                                            if let UdaDeclarationType::Vector(vec) = values {
+
+                                                let idx = arr[1].parse::<usize>().unwrap();
+
+                                                let vec_value = convert_to_uda_declaration(vec[idx].clone());
+
+                                                uda_value.insert("value".to_string(), vec_value);
+                                                uda_value.insert("is_nisas".to_string(), UdaDeclarationType::Boolean(uda.is_nisa));
+                                                
+                                                self.uda_hash.insert(uda.name, uda_value);
+
+                                            }
+
+                                        }
+
+                                        None => {}
+
+                                    }
+
+                                    let lunig_found = self.lunig_hash.get(&arr[0]);
+
+                                    match lunig_found {
+
+                                        Some(lunig_f) => {
+
+                                        },
+
+                                        None => {}
+
+                                    }
+
+                                }
+
+                                _ => {
+                                    uda_value.insert("value".to_string(), uda.value);
+                                    uda_value.insert("is_nisa".to_string(), UdaDeclarationType::Boolean(uda.is_nisa));
+
+                                    self.uda_hash.insert(uda.name, uda_value);
+                                }
+
+                            }
                         }
                     }
 
@@ -578,12 +713,334 @@ impl EnkiVM {
                 }
 
             
+            
+
+
+
+                
+                EnkiInstruction::INST_CALL_FNC(fnc) => {
+
+                    let splitted_identifier = fnc.ident.split_once("_");
+
+                    let uda_found = self.uda_hash.get_mut(&fnc.obj_name);
+                    let lunig_found = self.lunig_hash.get_mut(&fnc.obj_name);
+
+
+                    if let Some((t_from, t_act)) = splitted_identifier {
+
+                        match t_from {
+
+                            "array" => {
+
+                                match uda_found {
+
+                                    Some(val) => {
+                                        
+                                        let is_nisa = if let UdaDeclarationType::Boolean(v) = val.get("is_nisa").unwrap() {
+                                            *v
+                                        } else {
+                                            false
+                                        };
+
+                                        if !is_nisa {
+
+                                            let uda_val = val.get_mut("value").unwrap();
+
+                                            match uda_val {
+
+                                                UdaDeclarationType::Vector(vec) => {
+
+                                                    match t_act {
+
+                                                        "push-item" => {
+
+                                                            let val_to_push = fnc.args[0].to_string();
+                                                            let expr_val = val_to_expr(val_to_push);
+
+                                                            vec.push(expr_val);
+                                                        
+                                                        },
+
+                                                        "pop-last-item" => {
+
+                                                            vec.pop();
+                                                        
+                                                        },
+
+                                                        "pop-item" => {
+
+                                                            let idx_val = fnc.args[0].parse::<usize>().unwrap();
+                                                            
+                                                            if idx_val > vec.len() {
+                                                                let msg = format!("Array has {}, and index provided is {}. Limit exceeded.", vec.len(), idx_val);
+                                                                panic!("{}", ZigurateError::ArrayIndexExceeded(msg));
+                                                            }
+
+                                                            vec.remove(idx_val);
+                                                        
+                                                        },
+
+                                                        "clear" => {
+
+                                                            vec.clear();
+
+                                                        },
+
+                                                        &_ => {
+
+                                                        }
+
+                                                    }
+                                                    
+                                                }
+
+                                                UdaDeclarationType::PathProperties(pp) => {
+
+                                                    let lunig_found = self.lunig_hash.get_mut(&pp[0]);
+
+                                                    match lunig_found {
+
+                                                        Some(lunig) => {
+
+                                                            let property_found = lunig.get_mut(&pp[1]);
+
+                                                            match property_found {
+
+                                                                Some(prop) => {
+
+                                                                    match prop {
+                                                                        UdaDeclarationType::Vector(vec) => {
+
+                                                                            let msg = format!("You are trying to change a immutable Vector that's in a `lunig`. use `@nisa` to become it mutable.");
+                                                                            panic!("{}", ZigurateError::PropertyNotFound(msg))
+
+                                                                        }
+                                                                        _ => {
+                                                                            let msg = format!("Expected an Array in property `{}`. Got {:?}", pp[1], prop);
+                                                                            panic!("{}", ZigurateError::PropertyNotFound(msg))
+                                                                        }
+                                                                    }
+                                                                }
+
+                                                                None => {
+                                                                    let msg = format!("Not found a property called `{}` in lunig `{}`.", pp[1], pp[0]);
+                                                                    panic!("{}", ZigurateError::PropertyNotFound(msg))
+                                                                }
+
+                                                            }
+
+                                                        }
+
+                                                        None => {
+                                                            let msg = format!("A lunig called \"{}\" not exist or not found.", pp[0]);
+                                                            panic!("{}", ZigurateError::NotFound(msg));
+                                                        }
+
+                                                    }
+
+                                                    
+                                                }
+
+
+                                                _ => {
+                                                    let msg = format!("Expect an Array. Got {:?}", uda_val);
+                                                    panic!("{}", ZigurateError::GotWrongTypeValue(msg));
+                                                }
+                                            }
+
+                                        } else {
+
+                                            let uda_val = val.get_mut("value").unwrap();
+
+                                            match uda_val {
+
+                                                UdaDeclarationType::Vector(vec) => {
+
+                                                    match t_act {
+
+                                                        "push-item" => {
+
+                                                            let val_to_push = fnc.args[0].to_string();
+                                                            let expr_val = val_to_expr(val_to_push);
+
+                                                            vec.push(expr_val);
+                                                        
+                                                        },
+
+                                                        "pop-last-item" => {
+
+                                                            vec.pop();
+                                                        
+                                                        },
+
+                                                        "pop-item" => {
+
+                                                            let idx_val = fnc.args[0].parse::<usize>().unwrap();
+                                                            
+                                                            if idx_val > vec.len() {
+                                                                let msg = format!("Array has {}, and index provided is {}. Limit exceeded.", vec.len(), idx_val);
+                                                                panic!("{}", ZigurateError::ArrayIndexExceeded(msg));
+                                                            }
+
+                                                            vec.remove(idx_val);
+                                                        
+                                                        },
+
+                                                        "clear" => {
+
+                                                            vec.clear();
+
+                                                        },
+
+                                                        &_ => {
+
+                                                        }
+
+                                                    }
+                                                    
+                                                }
+
+                                                UdaDeclarationType::PathProperties(pp) => {
+
+                                                    let lunig_found = self.lunig_hash.get_mut(&pp[0]);
+
+                                                    match lunig_found {
+
+                                                        Some(lunig) => {
+
+                                                            let property_found = lunig.get_mut(&pp[1]);
+
+                                                            match property_found {
+
+                                                                Some(prop) => {
+
+                                                                    match prop {
+                                                                        UdaDeclarationType::Vector(vec) => {
+
+                                                                            match t_act {
+
+                                                                                "push-item" => {
+
+                                                                                    let val_to_push = fnc.args[0].to_string();
+                                                                                    let expr_val = val_to_expr(val_to_push);
+
+                                                                                    vec.push(expr_val);
+                                                                                
+                                                                                },
+
+                                                                                "pop-last-item" => {
+
+                                                                                    vec.pop();
+                                                                                
+                                                                                },
+
+                                                                                "pop-item" => {
+
+                                                                                    let idx_val = fnc.args[0].parse::<usize>().unwrap();
+                                                                                    
+                                                                                    if idx_val > vec.len() {
+                                                                                        let msg = format!("Array has {}, and index provided is {}. Limit exceeded.", vec.len(), idx_val);
+                                                                                        panic!("{}", ZigurateError::ArrayIndexExceeded(msg));
+                                                                                    }
+
+                                                                                    vec.remove(idx_val);
+                                                                                
+                                                                                },
+
+                                                                                "clear" => {
+
+                                                                                    vec.clear();
+
+                                                                                },
+
+                                                                                &_ => {
+
+                                                                                }
+
+                                                                            }
+
+                                                                        }
+                                                                        _ => {
+                                                                            let msg = format!("Expected an Array in property `{}`. Got {:?}", pp[1], prop);
+                                                                            panic!("{}", ZigurateError::PropertyNotFound(msg))
+                                                                        }
+                                                                    }
+                                                                }
+
+                                                                None => {
+                                                                    let msg = format!("Not found a property called `{}` in lunig `{}`.", pp[1], pp[0]);
+                                                                    panic!("{}", ZigurateError::PropertyNotFound(msg))
+                                                                }
+
+                                                            }
+
+                                                        }
+
+                                                        None => {
+                                                            let msg = format!("A lunig called \"{}\" not exist or not found.", pp[0]);
+                                                            panic!("{}", ZigurateError::NotFound(msg));
+                                                        }
+
+                                                    }
+
+                                                    
+                                                }
+
+                                                _ => {
+                                                    let msg = format!("Expect an Array. Got {:?}", uda_val);
+                                                    panic!("{}", ZigurateError::GotWrongTypeValue(msg));
+                                                }
+                                            }
+
+                                        }
+
+                                    }
+
+                                    None => {
+                                        let msg = format!("An uda called `{}` not exist or not found.", fnc.obj_name);
+                                        panic!("{}", ZigurateError::NotFound(msg));
+                                    }
+
+                                }
+
+                            }
+
+                            &_ => {
+
+                            }
+
+                        }
+
+                    } 
+
+                }
+
             }
 
 
         }
         Ok(())
 
+    }
+
+    pub fn match_fnc_acts(&mut self, t_act: &'static str) -> Result<(), ZigurateError> {
+
+        match t_act {
+
+            "push-item" => {
+
+
+
+            }
+
+            &_ => {
+
+            }
+
+        }
+
+        Ok(())
+        
     }
 
 }

@@ -1,142 +1,25 @@
 use std::collections::HashMap;
 
-use crate::core::utils::primi::{EXPR_Primi, SignalType};
+use crate::{core::utils::primi::{EXPR_Primi, SignalType}, enki_vm::enki_structures::CALL_FUNCTION};
 
 pub mod compiler;
 pub mod enki;
+pub mod enki_structures;
 
 
+use enki_structures::{
+    ANKI,
 
+    LUNIG,
+    LUNIG_EDIT,
 
+    UDA,
+    UDA_EDIT,
 
+    MARU,
+    GISH
 
-
-
-
-
-
-
-
-#[derive(Debug, Clone)]
-pub struct UDA {
-
-    pub name: String,
-    pub signal: String,
-    pub value: UdaDeclarationType,
-    pub is_nisa: bool
-
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#[derive(Debug, Clone)]
-pub struct LUNIG {
-    pub id: String,
-    pub data: HashMap<String, UdaDeclarationType>
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct UDA_EDIT {
-    pub name: String,
-    pub signal: SignalType,
-    pub new_value: UdaDeclarationType
-}
-
-
-
-
-
-
-
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct LUNIG_EDIT {
-    pub name: String,
-    pub properties: Vec<String>,
-    pub new_value: UdaDeclarationType
-}
-
-
-
-
-
-
-
-
-
-
-#[derive(Debug, Clone)]
-pub struct ANKI {
-    pub enki_instr: Vec<EnkiInstruction>
-}
-
-
-
-
-
-
-
-
-
-
-#[derive(Debug, Clone)]
-pub struct MARU {
-    pub path: String,
-}
-
-
-
-
-
-
-
-
-
-#[derive(Debug, Clone)]
-pub struct GISH {
-    pub id: String,
-    pub enums: Vec<String>
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
+};
 
 
 
@@ -168,6 +51,7 @@ pub enum UdaDeclarationType {
     Floating(f32),
     Boolean(bool),
     Vector(Vec<EXPR_Primi>),
+    ArrayIndexer(Vec<String>),
     PathProperties(Vec<String>)
 }
 
@@ -191,7 +75,6 @@ pub enum EnkiInstruction {
     INST_UDA_EDIT(UDA_EDIT), // uda_name = new_value
     INST_LUNIG_EDIT(LUNIG_EDIT), // lunig.prop = new_value
 
-
     INST_LUNIG_DECL(LUNIG), // lunig "Name" as name
     
     INST_ANKI(ANKI), // anki.:func()
@@ -199,5 +82,7 @@ pub enum EnkiInstruction {
     INST_MARU(MARU), // maru "./" ak id
 
     INST_GISH(GISH), // gish GishName: - GISH
+
+    INST_CALL_FNC(CALL_FUNCTION)
 
 }

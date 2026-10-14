@@ -11,14 +11,15 @@ use crate::core::utils::primi::{EXPR_Primi, STRT_Zilamma};
 use crate::enki_vm::{EnkiInstruction, UdaDeclarationType, UniqueTypedVectors};
 
 
-use crate::enki_vm::{
+use crate::enki_vm::enki_structures::{
     UDA,
     LUNIG,
     UDA_EDIT,
     ANKI,
     LUNIG_EDIT,
     MARU,
-    GISH
+    GISH,
+    CALL_FUNCTION
 };
 
 
@@ -31,6 +32,7 @@ pub fn get_expr_id(expr: EXPR_Primi) -> &'static str {
         _ => ""
     }
 }
+
 
 
 pub fn extr_expr_string(expr: EXPR_Primi, categ: &str) -> String {
@@ -48,6 +50,9 @@ pub fn extr_expr_string(expr: EXPR_Primi, categ: &str) -> String {
             } else {
                 return format!("!{}", t)
             }
+        },
+        EXPR_Primi::ArrayIndexer(arr) => {
+            return format!("!{}-{}", arr[0], arr[1])
         },
         EXPR_Primi::Boolean   (t)   => format!("{}", t),
 
@@ -140,7 +145,7 @@ pub fn extr_udatype_string(udadecl: &UdaDeclarationType) -> Result<String, Zigur
             }
 
         }
-
+ 
         _ => Ok("".to_string())
     }
 
@@ -156,14 +161,12 @@ pub fn convert_to_uda_declaration(expr: EXPR_Primi) -> UdaDeclarationType {
         EXPR_Primi::Boolean       (f)        => UdaDeclarationType::Boolean(f),
         EXPR_Primi::PathProperties(f) => UdaDeclarationType::PathProperties(f),
         EXPR_Primi::Vector        (vec) => UdaDeclarationType::Vector(vec),
+        EXPR_Primi::ArrayIndexer  (vec) => UdaDeclarationType::ArrayIndexer(vec),
 
         _ => UdaDeclarationType::String("".to_string())
     }
 
 }
-
-
-
 
 
 
@@ -204,6 +207,14 @@ pub fn enki_compiler(ast: Vec<STRT_Zilamma>) -> Result<Vec<EnkiInstruction>, Zig
                                 EXPR_Primi::PathProperties(pp) => {
 
                                     let enki_sar = EnkiInstruction::INST_SILIM_PROP(pp);
+                                    enkienes.push(enki_sar);
+
+                                },
+
+                                EXPR_Primi::ArrayIndexer(ref _inx) => {
+
+                                    let arg = extr_expr_string(arg_i, "array_index");
+                                    let enki_sar = EnkiInstruction::INST_SILIM(arg);
                                     enkienes.push(enki_sar);
 
                                 }
@@ -261,6 +272,179 @@ pub fn enki_compiler(ast: Vec<STRT_Zilamma>) -> Result<Vec<EnkiInstruction>, Zig
                         let msg = format!("Unknown function name `{}`", fnc.name.to_string());
                         panic!("{}", ZigurateError::UnknownCallFunctionName(msg));
                     }
+                }
+
+            }
+
+            STRT_Zilamma::ObjCallFunction(fnc) => {
+                
+                match fnc.name.as_str() {
+
+                    "push" => {
+
+                        let args = &fnc.args;
+
+                        if args.len() == 0 {
+                            let msg = format!("Parameters not found in `{}`", fnc.name.to_string());
+                            panic!("{}", ZigurateError::ParametersNotProvided(msg));
+                        }
+
+                        if args.len() > 1 {
+                            let msg = format!("`{}` got more one parameter. Expected only one.", fnc.name.to_string());
+                            panic!("{}", &ZigurateError::ParametersLimitExceeded(msg));
+                        }
+
+                        if args.len() == 1 {
+
+                            let arg_i = args[0].clone();
+                
+
+                            match arg_i {
+
+                                EXPR_Primi::String(val) => {
+
+                                    let fnc_m = CALL_FUNCTION {
+                                        obj_name: fnc.obj_name.to_string(),
+                                        ident: "array_push-item".to_string(),
+                                        args: vec![val] 
+                                    };
+
+                                    let enki_sar = EnkiInstruction::INST_CALL_FNC(fnc_m);
+                                    enkienes.push(enki_sar);
+
+                                }
+
+
+                                EXPR_Primi::Integer(val) => {
+
+                                    let fnc_m = CALL_FUNCTION {
+                                        obj_name: fnc.obj_name.to_string(),
+                                        ident: "array_push-item".to_string(),
+                                        args: vec![val.to_string()] 
+                                    };
+
+                                    let enki_sar = EnkiInstruction::INST_CALL_FNC(fnc_m);
+                                    enkienes.push(enki_sar);
+
+                                }
+
+
+                                EXPR_Primi::Floating(val) => {
+
+                                    let fnc_m = CALL_FUNCTION {
+                                        obj_name: fnc.obj_name.to_string(),
+                                        ident: "array_push-item".to_string(),
+                                        args: vec![val.to_string()] 
+                                    };
+
+                                    let enki_sar = EnkiInstruction::INST_CALL_FNC(fnc_m);
+                                    enkienes.push(enki_sar);
+
+                                }
+
+
+                                EXPR_Primi::Boolean(val) => {
+
+                                    let fnc_m = CALL_FUNCTION {
+                                        obj_name: fnc.obj_name.to_string(),
+                                        ident: "array_push-item".to_string(),
+                                        args: vec![val.to_string()] 
+                                    };
+
+                                    let enki_sar = EnkiInstruction::INST_CALL_FNC(fnc_m);
+                                    enkienes.push(enki_sar);
+
+                                }
+
+                                _ => {
+
+
+
+                                }
+
+                            }
+
+
+
+                        }
+
+                    }
+
+                    "pop" => {
+
+                        let args = &fnc.args;
+
+                        if args.len() == 0 {
+                            let fnc_m = CALL_FUNCTION {
+                                obj_name: fnc.obj_name.to_string(),
+                                ident: "array_pop-last-item".to_string(),
+                                args: vec![] 
+                            };
+
+                            let enki_sar = EnkiInstruction::INST_CALL_FNC(fnc_m);
+                            enkienes.push(enki_sar);
+                        
+                            continue;
+                        }
+
+                        if args.len() == 1 {
+
+                            let arg_i = args[0].clone();
+
+                            match arg_i {
+
+                                EXPR_Primi::Integer(val) => {
+
+                                    let fnc_m = CALL_FUNCTION {
+                                        obj_name: fnc.obj_name.to_string(),
+                                        ident: "array_pop-item".to_string(),
+                                        args: vec![val.to_string()] 
+                                    };
+
+                                    let enki_sar = EnkiInstruction::INST_CALL_FNC(fnc_m);
+                                    enkienes.push(enki_sar);
+                                
+                                    continue;
+
+                                }
+
+                                _ => {
+
+                                }
+
+                            }
+
+                        }
+
+                    }
+
+                    "clear" => {
+
+                        let args = &fnc.args;
+
+                        if args.len() == 0 {
+                            let fnc_m = CALL_FUNCTION {
+                                obj_name: fnc.obj_name.to_string(),
+                                ident: "array_clear".to_string(),
+                                args: vec![] 
+                            };
+
+                            let enki_sar = EnkiInstruction::INST_CALL_FNC(fnc_m);
+                            enkienes.push(enki_sar);
+                        
+                            continue;
+                        } else {
+                            let msg = format!("`.:clear` don't need parameters.");
+                            return Err(ZigurateError::ParametersLimitExceeded(msg))
+                        }
+
+                    }
+
+                    &_ => {
+                        let msg = format!("Unknown function name `{}`", fnc.name.to_string());
+                        panic!("{}", ZigurateError::UnknownCallFunctionName(msg));
+                    }
+
                 }
 
             }

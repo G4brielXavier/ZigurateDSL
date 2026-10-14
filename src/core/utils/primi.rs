@@ -1,6 +1,7 @@
 use crate::core::utils::structures::{
-    TEMEM_Anki, TEMEM_EditLunig, TEMEM_EditVariable, TEMEM_Function, TEMEM_Lunig, TEMEM_Maru, TEMEM_TempVariable, TEMEM_Gish
+    TEMEM_Anki, TEMEM_EditLunig, TEMEM_EditVariable, TEMEM_Function, TEMEM_Gish, TEMEM_Lunig, TEMEM_Maru, TEMEM_ObjFunction, TEMEM_TempVariable
 };
+
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Primi {
@@ -30,6 +31,7 @@ pub enum Primi {
 pub enum STRT_Zilamma {
 
     CallFunction(TEMEM_Function),
+    ObjCallFunction(TEMEM_ObjFunction),
 
     DeclUda(TEMEM_TempVariable),
     DeclLunig(TEMEM_Lunig),
@@ -54,6 +56,8 @@ pub enum EXPR_Primi {
     Floating(f32),
     Symbol(char),
     Identifier(String),
+
+    ArrayIndexer(Vec<String>),
 
     Vector(Vec<EXPR_Primi>),
     PathProperties(Vec<String>),

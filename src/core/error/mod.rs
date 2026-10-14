@@ -15,7 +15,13 @@ pub enum ZigurateError {
     UnknownFunction(String),
     PropertyLimitExceeded(String),
     TypeNotSupported(String),
+
     VectorTypesValueIsMixed(String),
+    ArrayIndexExceeded(String),
+
+    ParametersNotProvided(String),
+    ParametersLimitExceeded(String),
+    GotWrongTypeValue(String),
 
     EnkiFunctionNotFound(String),
 
@@ -56,6 +62,11 @@ impl fmt::Display for ZigurateError {
             ZigurateError::UnknownFunction(e) =>  write!(f, "{}", e),
             ZigurateError::TypeNotSupported(e) =>  write!(f, "{}", e),
             ZigurateError::VectorTypesValueIsMixed(e) =>  write!(f, "{}", e),
+            ZigurateError::ParametersNotProvided(e) =>  write!(f, "{}", e),
+            ZigurateError::ParametersLimitExceeded(e) =>  write!(f, "{}", e),
+            ZigurateError::GotWrongTypeValue(e) =>  write!(f, "{}", e),
+            ZigurateError::ArrayIndexExceeded(e) =>  write!(f, "{}", e),
+
             
             
         }
@@ -87,6 +98,10 @@ impl Error for ZigurateError {
             ZigurateError::UnknownFunction(_) => None,
             ZigurateError::TypeNotSupported(_) => None,
             ZigurateError::VectorTypesValueIsMixed(_) => None,
+            ZigurateError::ParametersNotProvided(_) => None,
+            ZigurateError::ParametersLimitExceeded(_) => None,
+            ZigurateError::GotWrongTypeValue(_) => None,
+            ZigurateError::ArrayIndexExceeded(_) => None,
             
         }
     }
