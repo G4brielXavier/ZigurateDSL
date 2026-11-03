@@ -4,13 +4,14 @@ pub mod utils;
 
 
 use std::println;
+use std::str::from_utf8;
 
 use crate::core::engine::tokenizer::Tokenizer;
 use crate::core::engine::ast::AST;
 use crate::core::error::ZigurateError;
 
 use crate::enki_vm::enki::EnkiVM;
-use crate::enki_vm::{self, EnkiInstruction};
+use crate::enki_vm::EnkiInstruction;
 use crate::enki_vm::compiler::enki_compiler;
 
 

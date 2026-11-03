@@ -1,3 +1,5 @@
+#![allow(non_camel_case_types)]
+
 use crate::{core::utils::primi::EXPR_Primi, enki_vm::UdaDeclarationType};
 use crate::core::utils::primi::{STRT_Zilamma, SignalType};
 
@@ -139,3 +141,13 @@ pub struct TEMEM_Gish {
 
 
 
+
+
+
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct TEMEM_Suma {
+    pub conditions: Vec<EXPR_Primi>,
+    pub acts_suma: Vec<STRT_Zilamma>,
+    pub acts_li: Vec<STRT_Zilamma>
+}

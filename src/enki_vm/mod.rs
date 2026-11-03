@@ -1,6 +1,8 @@
+#![allow(non_camel_case_types)]
+
 use std::collections::HashMap;
 
-use crate::{core::utils::primi::{EXPR_Primi, SignalType}, enki_vm::enki_structures::CALL_FUNCTION};
+use crate::{core::utils::primi::{EXPR_Primi, SignalType}, enki_vm::enki_structures::{CALL_FUNCTION, SUMA}};
 
 pub mod compiler;
 pub mod enki;
@@ -41,18 +43,51 @@ pub enum UniqueTypedVectors {
 
 
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum SumaOperator {
+    TRUE,
+    FALSE,
+    AND,
+    OR,
+    IS,
+    IS_NOT,
+    IS_MORE,
+    IS_LESS,
+    IS_MORE_EQ,
+    IS_LESS_EQ
+}
+
+
 
 
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum UdaDeclarationType {
+    
     String(String),
+    Identifier(String),
     Integer(i32),
     Floating(f32),
     Boolean(bool),
     Vector(Vec<EXPR_Primi>),
+    
     ArrayIndexer(Vec<String>),
-    PathProperties(Vec<String>)
+    PathProperties(Vec<String>),
+
+    Dumune(Vec<EXPR_Primi>),
+    
+    Object(HashMap<String, UdaDeclarationType>),
+    
+    OR,
+    AND,
+
+    IS,
+    IS_NOT,
+    IS_MORE,
+    IS_LESS,
+    IS_MORE_EQ,
+    IS_LESS_EQ,
+
 }
 
 
@@ -64,25 +99,23 @@ pub enum UdaDeclarationType {
 #[derive(Debug, Clone)]
 pub enum EnkiInstruction {
 
-    INST_SILIM(String), // silim()
-    INST_SILIM_PROP(Vec<String>), // silim(item.prop)
+    INST_SILIM(String),             // silim()
+    INST_SILIM_PROP(Vec<String>),   // silim(item.prop)
 
-    INST_UDA_DECL(UDA), // uda name = value
+    INST_UDA_DECL(UDA),             // uda name = value
+    INST_UDA_EDIT(UDA_EDIT),        // uda_name = new_value
+    INST_CUT_UDA(Vec<String>),      // anki.:kud(uda_name)
     
-    INST_CUT_UDA(Vec<String>), // anki.:kud(uda_name)
-    INST_GAZ_LUNIG(Vec<String>), // anki.:gaz(lunig_name)
-
-    INST_UDA_EDIT(UDA_EDIT), // uda_name = new_value
-    INST_LUNIG_EDIT(LUNIG_EDIT), // lunig.prop = new_value
-
-    INST_LUNIG_DECL(LUNIG), // lunig "Name" as name
+    INST_LUNIG_EDIT(LUNIG_EDIT),    // lunig.prop = new_value
+    INST_LUNIG_DECL(LUNIG),         // lunig "Name" as name
+    INST_GAZ_LUNIG(Vec<String>),    // anki.:gaz(lunig_name)
     
-    INST_ANKI(ANKI), // anki.:func()
+    INST_ANKI(ANKI),                // anki.:func()
+    INST_MARU(MARU),                // maru "./" ak id
+    INST_GISH(GISH),                // gish GishName: - GISH
 
-    INST_MARU(MARU), // maru "./" ak id
+    INST_SUMA(SUMA),                // suma condition {} 
 
-    INST_GISH(GISH), // gish GishName: - GISH
-
-    INST_CALL_FNC(CALL_FUNCTION)
+    INST_CALL_FNC(CALL_FUNCTION),   // function()
 
 }

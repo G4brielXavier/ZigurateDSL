@@ -32,7 +32,30 @@ pub struct UDA {
 #[derive(Debug, Clone)]
 pub struct LUNIG {
     pub id: String,
-    pub data: HashMap<String, UdaDeclarationType>
+    pub data: HashMap<String, UdaDeclarationType>,
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#[derive(Debug, Clone)]
+pub struct SUMA {
+    pub conditions: Vec<UdaDeclarationType>,
+    pub acts_suma: Vec<EnkiInstruction>,
+    pub acts_li: Vec<EnkiInstruction>
 }
 
 

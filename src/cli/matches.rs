@@ -24,7 +24,7 @@ pub fn match_command(cmd: &Commands) -> Result<(), ZigurateError> {
     let sita = Sita::gibil();
 
     let zigurate_name = format!("{}", "/|\\ ZIGURATE");
-    let status_stable = format!("{}", "(beta 4)".yellow().italic());
+    let status_stable = format!("{}", "(beta 5)".yellow().italic());
     let version_zigurate = format!("{} — UR1 {}", zigurate_name.bold(), status_stable);
 
     match cmd {
@@ -59,32 +59,60 @@ pub fn match_command(cmd: &Commands) -> Result<(), ZigurateError> {
 
                 Ok(main_path) => {
 
-                    let content = sita.read_file(main_path)
+                    let content = sita.read_file(&main_path)
                         .map_err(|e| ZigurateError::IOError(e))?;
 
                     let byte_content = content.as_bytes();
 
 
-                    let enki_data = get_enki_data(&sita, &curr_path)?;
+                    let enki_data = get_enki_data(&sita, &curr_path);
 
-                    let cmd = format!("enki run");
+                    match enki_data {
+                        Ok(enki_data) => {
 
-                    let msg_2 = format!("");
+                            let cmd = format!("enki run");
 
-                    println!();
-                    println!("{}", version_zigurate);
-                    println!("--- {} {} st.{}", "info:".bold().yellow(), enki_data.name.italic(), enki_data.stage.italic());
-                    println!("--- {} {} {}", "cmd:".bold().yellow(), cmd.yellow().italic(), "!executed".bold().green());
-                    println!("--- {} {}", "in:".bold().yellow(), curr_path.display().to_string().underline());
-                    println!();
-                    println!("{} {}", "Compiling EnkiVM...".bright_blue().bold(), msg_2);
+                            let msg_2 = format!("");
 
-                    // MAIN
+                            println!();
+                            println!("{}", version_zigurate);
+                            println!("--- {} {} st.{}", "info:".bold().yellow(), enki_data.name.italic(), enki_data.stage.italic());
+                            println!("--- {} {} {}", "cmd:".bold().yellow(), cmd.yellow().italic(), "!executed".bold().green());
+                            println!("--- {} {}", "in:".bold().yellow(), curr_path.display().to_string().underline());
+                            println!();
+                            println!("{} {}", "Compiled.".bright_green().bold(), msg_2);
 
-                    let enki_instructions = zigurage_compiler_simple(byte_content)?;
-                    let mut enki_vm = EnkiVM::on(enki_instructions);
+                            // MAIN
 
-                    zigurate_compiler_enki(&mut enki_vm)?;
+                            let enki_instructions = zigurage_compiler_simple(byte_content)?;
+                            let mut enki_vm = EnkiVM::on(enki_instructions);
+
+                            zigurate_compiler_enki(&mut enki_vm)?;
+
+                        }
+                        Err(_) => {
+
+                            let cmd = format!("enki run {}", main_path.display());
+
+                            let msg_2 = format!("");
+
+                            println!();
+                            println!("{}", version_zigurate);
+                            println!("--- {}", "single-file".italic());
+                            println!("--- {} {} {}", "cmd:".bold().yellow(), cmd.yellow().italic(), "!executed".bold().green());
+                            println!("--- {} {}", "in:".bold().yellow(), curr_path.display().to_string().underline());
+                            println!();
+                            println!("{} {}", "Compiled.".bright_green().bold(), msg_2);
+
+                            // MAIN
+
+                            let enki_instructions = zigurage_compiler_simple(byte_content)?;
+                            let mut enki_vm = EnkiVM::on(enki_instructions);
+
+                            zigurate_compiler_enki(&mut enki_vm)?;
+
+                        }
+                    }
 
                 },
                 Err(err) => {

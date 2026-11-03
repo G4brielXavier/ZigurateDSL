@@ -206,6 +206,10 @@ impl<'a> Tokenizer<'a> {
                 Primi::Kwd_Maru
             } else if self.zigu_table.kwd_gish == b_val {
                 Primi::Kwd_Gish
+            } else if self.zigu_table.kwd_suma == b_val {
+                Primi::Kwd_Suma
+            } else if self.zigu_table.kwd_comparation_operators.contains(&b_val) {
+                Primi::Kwd_ComparationOP
             } else {
                 Primi::Identifier
             };
@@ -229,7 +233,16 @@ impl<'a> Tokenizer<'a> {
         self.eyes.blink(); 
         self.eyes.blink();
 
-        while self.eyes.look().unwrap() != b'\n' {
+        loop {
+            let v = match self.eyes.look() {
+                Some(v) => v,
+                None => break
+            };
+
+            if v == b'\n' {
+                break
+            }
+
             self.eyes.blink();
         }
 

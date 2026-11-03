@@ -2,13 +2,15 @@
 
 > Created specifically for my personal worldbuilding use. If you have patient to use it for your world, be free.
 
+> Nowadays, Zigurate UR1 is in deep development, so, some features still not arrive. That's why it is in beta.
+
 *A Executable Specification Language for Game designers, writters and worldbuilders, designed in **Rust***.
 
 
 ![banner](./imgs/ZigurateBanner.png)
 
 
-```zi
+```js
 silim("Hello World!")
 ```
 
@@ -18,11 +20,9 @@ silim("Hello World!")
 I designed it to speed-up my large worldbuilding search, I have a lot of characters, artifacts, items and others. With Zigurate, I can organize my world and search for what I want to find.
 
 
-
-
 ## Documentation
 
-> Coming soon.
+> In development with **VitePress**.
 
 
 ## Download
@@ -30,17 +30,33 @@ I designed it to speed-up my large worldbuilding search, I have a lot of charact
 ### Github Releases (.zip)
 
 1. Go to [Releases](https://github.com/G4brielXavier/ZigurateLang/Releases)
-2. Choice your version and install the *enki_installer-URX.zip*
+2. Choice the version and install the *enki_installer-URX.zip*
 3. After, extract the `.zip`.
-4. Click two times in `install.bat`
-5. Close the terminal opened and test with `enki --version`
+4. Open the folder and execute `install.bat`
+5. Close the terminal that will be open.
+6. Open a new terminal and execute: `enki --version`
 
-<!-- ### Cargo
+### Cargo
 
-If you have Rust Cargo in you PC, follow this:
-1. Open your terminal
-2. Execute: `cargo install zigurate-lang`
-3. To test: `enki --version` -->
+1. Open your terminal and execute:
+```ps
+cargo install enki
+```
+2. After install, open a new terminal and use:
+```ps
+enki --version
+```
+
+
+
+## Roadmap
+
+| Milestone | Status |
+|---|---|
+| New *AnkiFunction*: `anki.:muria()` for timelines creations | ❌ |
+| Error treatments improvements | ❌ |
+| Local Database System | ❌ |
+| New CLI command: `enki galam --file` to up project to database for query | ❌ |
 
 
 ## LICENSE

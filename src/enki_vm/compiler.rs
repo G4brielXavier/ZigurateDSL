@@ -1,9 +1,5 @@
-
 use core::panic;
 use std::collections::HashMap;
-use std::fmt::format;
-use std::{convert, println};
-use std::any::Any;
 
 use crate::core::error::ZigurateError;
 use crate::core::utils::primi::{EXPR_Primi, STRT_Zilamma};
@@ -12,14 +8,7 @@ use crate::enki_vm::{EnkiInstruction, UdaDeclarationType, UniqueTypedVectors};
 
 
 use crate::enki_vm::enki_structures::{
-    UDA,
-    LUNIG,
-    UDA_EDIT,
-    ANKI,
-    LUNIG_EDIT,
-    MARU,
-    GISH,
-    CALL_FUNCTION
+    ANKI, CALL_FUNCTION, GISH, LUNIG, LUNIG_EDIT, MARU, SUMA, UDA, UDA_EDIT
 };
 
 
@@ -145,7 +134,8 @@ pub fn extr_udatype_string(udadecl: &UdaDeclarationType) -> Result<String, Zigur
             }
 
         }
- 
+
+
         _ => Ok("".to_string())
     }
 
@@ -155,13 +145,24 @@ pub fn extr_udatype_string(udadecl: &UdaDeclarationType) -> Result<String, Zigur
 pub fn convert_to_uda_declaration(expr: EXPR_Primi) -> UdaDeclarationType {
 
     match expr {
-        EXPR_Primi::String        (e)      => UdaDeclarationType::String(e),
-        EXPR_Primi::Integer       (i)         => UdaDeclarationType::Integer(i),
-        EXPR_Primi::Floating      (f)         => UdaDeclarationType::Floating(f),
-        EXPR_Primi::Boolean       (f)        => UdaDeclarationType::Boolean(f),
-        EXPR_Primi::PathProperties(f) => UdaDeclarationType::PathProperties(f),
+        EXPR_Primi::Identifier    (e)            => UdaDeclarationType::Identifier(e),
+        EXPR_Primi::String        (e)            => UdaDeclarationType::String(e),
+        EXPR_Primi::Integer       (i)               => UdaDeclarationType::Integer(i),
+        EXPR_Primi::Floating      (f)               => UdaDeclarationType::Floating(f),
+        EXPR_Primi::Boolean       (f)              => UdaDeclarationType::Boolean(f),
+        EXPR_Primi::PathProperties(f)       => UdaDeclarationType::PathProperties(f),
         EXPR_Primi::Vector        (vec) => UdaDeclarationType::Vector(vec),
-        EXPR_Primi::ArrayIndexer  (vec) => UdaDeclarationType::ArrayIndexer(vec),
+        EXPR_Primi::ArrayIndexer  (vec)     => UdaDeclarationType::ArrayIndexer(vec),
+        EXPR_Primi::Dumune        (vec) => UdaDeclarationType::Dumune(vec),
+        
+        EXPR_Primi::OPT_AND           => UdaDeclarationType::AND,
+        EXPR_Primi::OPT_OR            => UdaDeclarationType::OR,
+        EXPR_Primi::OPT_IS            => UdaDeclarationType::IS,
+        EXPR_Primi::OPT_IS_NOT        => UdaDeclarationType::IS_NOT,
+        EXPR_Primi::OPT_IS_MORE       => UdaDeclarationType::IS_MORE,
+        EXPR_Primi::OPT_IS_LESS       => UdaDeclarationType::IS_LESS,
+        EXPR_Primi::OPT_IS_LESS_EQ    => UdaDeclarationType::IS_LESS_EQ,
+        EXPR_Primi::OPT_IS_MORE_EQ    => UdaDeclarationType::IS_MORE_EQ,
 
         _ => UdaDeclarationType::String("".to_string())
     }
@@ -499,18 +500,119 @@ pub fn enki_compiler(ast: Vec<STRT_Zilamma>) -> Result<Vec<EnkiInstruction>, Zig
                 match &edit.path_prop {
                     EXPR_Primi::PathProperties(pp) => {
 
-                        let edit_lunig_m = LUNIG_EDIT {
-                            name: edit.lunig_id.clone(),
-                            properties: pp.clone(),
-                            new_value: convert_to_uda_declaration(edit.new_value.clone())
-                        };
+                        match &edit.new_value {
 
-                        let enki_sar = EnkiInstruction::INST_LUNIG_EDIT(edit_lunig_m);
-                        enkienes.push(enki_sar);
+                            EXPR_Primi::Zilamma(zil) => {
+
+                                let out_zil = zil.as_ref();
+
+                                match out_zil {
+
+                                    STRT_Zilamma::Anki(anki) => {
+
+                                        let fnc_anki_zil = anki.fnc.as_ref();
+
+                                        match fnc_anki_zil {
+
+                                            STRT_Zilamma::CallFunction(call_fnc) => {
+
+                                                match call_fnc.name.as_str() {
+
+                                                    "dumu" => {
+
+                                                        let args = &call_fnc.args;
+
+                                                        if args.len() == 0 {
+                                                            return Err(ZigurateError::ParametersNotProvided("Arguments/Parameters expected in `anki.:dumu`.".to_string()))
+                                                        }
+
+                                                        if args.len() > 1 {
+                                                            return Err(ZigurateError::ParametersLimitExceeded("`anki.:dumu` only need 1 argument. Found 2.".to_string()))
+                                                        }
+
+                                                        let arg = &args[0];
+
+                                                        match arg {
+                                                            EXPR_Primi::Dumune(dumune) => {
+
+                                                                let mut dumu_lunig_data: HashMap<String, UdaDeclarationType> = HashMap::new();
+
+                                                                for dum in dumune.iter() {
+
+                                                                    match dum {
+                                                                        EXPR_Primi::DumuStructure(dumu) => {
+
+                                                                            let key = extr_expr_string(dumu[0].clone(), "");
+                                                                            let value = convert_to_uda_declaration(dumu[1].clone());
+
+                                                                            dumu_lunig_data.insert(key, value);
+
+                                                                        },
+                                                                        _ => {
+                                                                            return Err(ZigurateError::GotWrongTypeValue(format!("Expected a `DumuStructure`. Use `{{ prop: value }}` format.")))
+                                                                        }
+                                                                    }
+
+                                                                }
+
+                                                                let edit_lunig_m = LUNIG_EDIT {
+                                                                    name: edit.lunig_id.clone(),
+                                                                    properties: pp.clone(),
+                                                                    new_value: UdaDeclarationType::Object(dumu_lunig_data)
+                                                                };
+
+                                                                let enki_sar = EnkiInstruction::INST_LUNIG_EDIT(edit_lunig_m);
+                                                                enkienes.push(enki_sar);
+
+                                                            },
+                                                            _ => {
+                                                                return Err(ZigurateError::GotWrongTypeValue(format!("Expected a `DumuStructure`. Use `{{ prop: value }}` format.")))
+                                                            }
+                                                        }
+
+                                                    },
+                                                    &_ => {
+                                                        return Err(ZigurateError::UnknownCallFunctionName(format!("`{}` is not an AnkiFunction existent.", call_fnc.name)))
+                                                    }
+
+                                                }
+
+                                            }
+
+                                            _ => {
+                                                return Err(ZigurateError::GotWrongTypeValue("CallFunction expected.".to_string()))
+                                            }
+
+                                        }
+
+                                    },
+
+                                    _ => {
+                                        return Err(ZigurateError::TypeNotSupported("`{}` not supported as lunig's value instruction.".to_string()))
+                                    }
+
+                                }
+
+                            },
+                            _ => {
+
+                                let edit_lunig_m = LUNIG_EDIT {
+                                    name: edit.lunig_id.clone(),
+                                    properties: pp.clone(),
+                                    new_value: convert_to_uda_declaration(edit.new_value.clone())
+                                };
+
+
+                                let enki_sar = EnkiInstruction::INST_LUNIG_EDIT(edit_lunig_m);
+                                enkienes.push(enki_sar);
+                                
+                            }
+
+                        }
 
                     },
                     _ => {
-                        return Err(ZigurateError::PropertiesExpected("".to_string()))
+                        return Err(ZigurateError::PropertiesExpected("To edit a lunig you need to use the format: `obj.property`".to_string()))
                     }
                 }
 
@@ -552,6 +654,27 @@ pub fn enki_compiler(ast: Vec<STRT_Zilamma>) -> Result<Vec<EnkiInstruction>, Zig
                 };
 
                 let enki_sar = EnkiInstruction::INST_GISH(gish_m);
+                enkienes.push(enki_sar);
+
+            }
+
+            STRT_Zilamma::Suma(suma) => {
+
+                let mut suma_conds = Vec::new();
+                let suma_acts = enki_compiler(suma.acts_suma.clone())?;
+                let suma_li = enki_compiler(suma.acts_li.clone())?;
+
+                for cond in &suma.conditions {
+                    suma_conds.push(convert_to_uda_declaration(cond.clone()));
+                }
+
+                let suma_m = SUMA {
+                    conditions: suma_conds,
+                    acts_suma: suma_acts,
+                    acts_li: suma_li
+                };
+
+                let enki_sar = EnkiInstruction::INST_SUMA(suma_m);
                 enkienes.push(enki_sar);
 
             }

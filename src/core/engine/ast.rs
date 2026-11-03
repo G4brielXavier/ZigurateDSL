@@ -1,26 +1,34 @@
 use std::collections::HashMap;
-use std::{print, println};
+use std::println;
+// use std::{print, println};
+use std::str::from_utf8;
 
 use colored::Colorize;
 
-use crate::core::utils::primi::Primi::Kwd_Modificators;
 use crate::core::{error::ZigurateError};
 
 use crate::core::utils::token::Token;
+
 use crate::core::utils::primi::{EXPR_Primi, Primi, SignalType};
 use crate::core::utils::primi::STRT_Zilamma::{self, ObjCallFunction};
 
 
 use crate::core::utils::structures::{
-    TEMEM_Anki, TEMEM_EditLunig, TEMEM_EditVariable, TEMEM_Function, TEMEM_Gish, TEMEM_Lunig, TEMEM_Maru, TEMEM_ObjFunction, TEMEM_TempVariable
+    TEMEM_Anki, 
+    TEMEM_EditLunig,
+    TEMEM_EditVariable, 
+    TEMEM_Function, 
+    TEMEM_Gish, 
+    TEMEM_Lunig, 
+    TEMEM_Maru, 
+    TEMEM_ObjFunction, 
+    TEMEM_Suma, 
+    TEMEM_TempVariable
 };
 
 
 use crate::enki_vm::UdaDeclarationType;
 
-
-
-use std::str::from_utf8;
 
 
 
@@ -33,6 +41,11 @@ pub struct AST<'a> {
 
 
 impl<'a> AST<'a> {
+
+
+
+
+
 
     pub fn open(tokens: Vec<Token<'a>>) -> Self {
         Self { i: 0, tokens }
@@ -68,7 +81,6 @@ impl<'a> AST<'a> {
         }
 
     }
-
 
 
 
@@ -123,7 +135,6 @@ impl<'a> AST<'a> {
 
 
 
-
     pub fn parse_block(&mut self, from: &str) -> Result<Vec<EXPR_Primi>, ZigurateError> {
 
         let mut content: Vec<EXPR_Primi> = Vec::new();
@@ -164,7 +175,6 @@ impl<'a> AST<'a> {
         }
 
     }
-
 
 
 
@@ -236,7 +246,6 @@ impl<'a> AST<'a> {
 
 
 
-
     pub fn parse_call_fnc(&mut self) -> Result<Vec<EXPR_Primi>, ZigurateError> {
 
         let mut args = Vec::new();
@@ -261,15 +270,18 @@ impl<'a> AST<'a> {
                 if e == ',' { return Err(ZigurateError::UnexpectedSymbol) }
             } else {
 
+                // println!("{:?}", expr);
+
                 match expr {
                 
-                    EXPR_Primi::String        (val)      => args.push(EXPR_Primi::String        (val)),
-                    EXPR_Primi::Boolean       (val)        => args.push(EXPR_Primi::Boolean       (val)),
-                    EXPR_Primi::Integer       (val)         => args.push(EXPR_Primi::Integer       (val)),
-                    EXPR_Primi::Floating      (val)         => args.push(EXPR_Primi::Floating      (val)),
+                    EXPR_Primi::String        (val)            => args.push(EXPR_Primi::String        (val)),
+                    EXPR_Primi::Boolean       (val)              => args.push(EXPR_Primi::Boolean       (val)),
+                    EXPR_Primi::Integer       (val)               => args.push(EXPR_Primi::Integer       (val)),
+                    EXPR_Primi::Floating      (val)               => args.push(EXPR_Primi::Floating      (val)),
                     EXPR_Primi::ArrayIndexer  (val)       => args.push(EXPR_Primi::ArrayIndexer  (val)),
-                    EXPR_Primi::Identifier    (val)      => args.push(EXPR_Primi::Identifier    (val)),
-                    EXPR_Primi::PathProperties(val) => args.push(EXPR_Primi::PathProperties(val)),
+                    EXPR_Primi::Identifier    (val)            => args.push(EXPR_Primi::Identifier    (val)),
+                    EXPR_Primi::PathProperties(val)       => args.push(EXPR_Primi::PathProperties(val)),
+                    EXPR_Primi::Dumune        (val)   => args.push(EXPR_Primi::Dumune        (val)),
                     
                     _ => todo!()
 
@@ -278,10 +290,11 @@ impl<'a> AST<'a> {
 
         }
 
+
+
         Ok(args)
 
     }
-
 
 
 
@@ -353,6 +366,103 @@ impl<'a> AST<'a> {
                                         let expr = self.parse_properties(&value)?;
                                         return Ok(expr)
                                     },
+                                    ':' => {
+
+                                        self.step();
+                                        let two_pnts_tk = self.see();
+
+                                        match two_pnts_tk {
+
+                                            Some(tpk) => {
+
+                                                if tpk.value == b":" {
+
+                                                    self.step();
+                                                    let property_val = self.see();
+
+                                                    match property_val {
+                                                        Some(dumu) => {
+
+                                                            let dumu_key = format!("{}", from_utf8(dumu.value).unwrap().to_string()); 
+                                                            self.step();
+
+                                                            let nxt_dot = self.see();
+
+                                                            match nxt_dot {
+                                                                Some(nxt) => {
+
+                                                                    match nxt.primi {
+                                                                        Primi::Symbol => {
+
+                                                                            if nxt.value == b"." {
+
+                                                                                self.step();
+
+                                                                                let dumu_property = self.see();
+
+                                                                                match dumu_property {
+                                                                                    Some(prop) => {
+
+                                                                                        let dumu_prop = from_utf8(prop.value).unwrap().to_string();
+                                                                                        self.step();
+
+                                                                                        let path_list: Vec<String> = vec![value, dumu_key, dumu_prop];
+                                                                                        let pp_expr = EXPR_Primi::PathProperties(path_list);
+                                                                                        
+                                                                                        // println!("{:?}", pp_expr);
+
+                                                                                        Ok(pp_expr)
+
+
+                                                                                    },
+                                                                                    None => {
+                                                                                        let msg = format!("Expected `propertyName` in DumuReference like `{}::{}.prop_name`.", value, dumu_key);
+                                                                                        return Err(ZigurateError::SyntaxError(msg))
+                                                                                    }
+                                                                                }
+
+                                                                            } else {
+                                                                                let msg = format!("Expected `.` to get property in DumuReference like `{}::{}.prop_name`.", value, dumu_key);
+                                                                                return Err(ZigurateError::SyntaxError(msg))
+                                                                            }
+
+                                                                        },
+                                                                        _ => {
+                                                                            let path_list: Vec<String> = vec![value, dumu_key];
+                                                                            let pp_expr = EXPR_Primi::PathProperties(path_list);
+                                                                            Ok(pp_expr)
+                                                                        }
+                                                                    }
+
+                                                                },
+                                                                None => {
+                                                                    let path_list: Vec<String> = vec![value, dumu_key];
+                                                                    let pp_expr = EXPR_Primi::PathProperties(path_list);
+                                                                    Ok(pp_expr)
+                                                                }
+                                                            }
+
+                                                        },
+                                                        None => {
+                                                            let msg = format!("Expected DumuObject after `::` as in `obj::dumu`.");
+                                                            return Err(ZigurateError::SyntaxError(msg))
+                                                        }
+                                                    }
+
+                                                } else {
+                                                    let msg = format!("Expected `:`");
+                                                    return Err(ZigurateError::SyntaxError(msg))
+                                                }
+
+                                            },
+                                            None => {
+                                                let msg = format!("Expected `:`");
+                                                return Err(ZigurateError::SyntaxError(msg))
+                                            }
+
+                                        }
+
+                                    },
                                     '[' => {
                                         let expr = self.parse_expr()?;
 
@@ -403,7 +513,7 @@ impl<'a> AST<'a> {
                 Ok(expr) 
 
             },
-            
+        
 
 
             Primi::Symbol => {
@@ -428,13 +538,24 @@ impl<'a> AST<'a> {
                                 },
                                 "]" => {
 
-                                    let tk_index = self.step();
-                                    let tk_index_val = from_utf8(tk_index.value)?.parse::<i32>().unwrap();
-                                    let expr = EXPR_Primi::Integer(tk_index_val);
-
-                                    self.step();
+                                    let tk_index = self.see().unwrap();
+                                    let tk_index_val = from_utf8(tk_index.value)?.parse::<i32>();
                                     
-                                    return Ok(expr)
+                                    match tk_index_val {
+                                        Ok(v) => {
+                                            let expr = EXPR_Primi::Integer(v);
+                                            self.step();
+                                            self.step();
+
+                                            return Ok(expr)
+                                        }
+                                        Err(_) => {
+                                            let data = self.parse_list()?;
+                                            return Ok(data)
+                                        } 
+                                    }
+
+                        
                                 
                                 },
                                 &_ => {
@@ -452,6 +573,119 @@ impl<'a> AST<'a> {
                         }
                     }
 
+                } else if sym_char == '{' {
+
+
+                    let mut internal_properties: Vec<EXPR_Primi> = Vec::new();
+                    
+                    while self.see().is_some() && self.see().unwrap().value != b"}" {
+
+                        let pr_name = self.see();
+
+                        match pr_name {
+
+                            Some(pr_n) => {
+
+                                let key_val = EXPR_Primi::String(from_utf8(pr_n.value).unwrap().to_string());
+                                self.step();
+
+                                let pr_sign = self.see();
+
+                                match pr_sign {
+
+                                    Some(pr_s) => {
+
+                                        let pr_s_char = from_utf8(pr_s.value).unwrap().chars().next().unwrap();
+                                        self.step();
+
+                                        if pr_s_char == ':' {
+                                            let pr_value = self.see();
+
+                                            match pr_value {
+                                                Some(pr_v) => {
+                                                    
+                                                    let value_val = EXPR_Primi::String(from_utf8(pr_v.value).unwrap().to_string());
+                                                    self.step();
+
+                                                    let dumu = vec![key_val, value_val];
+                                                    let expr = EXPR_Primi::DumuStructure(dumu);
+                                                    
+                                                    internal_properties.push(expr);
+
+                                                    let virg_tk = self.see();
+
+                                                    match virg_tk {
+                                                        Some(virg) => {
+
+                                                            if virg.value == b"," {
+                                                                self.step();
+                                                                continue;
+                                                            } else if virg.value == b"}" {
+                                                                continue;
+                                                            } else {
+                                                                let msg = format!("Expected `,`. Got `{}`", from_utf8(virg.value).unwrap());
+                                                                return Err(ZigurateError::SyntaxError(msg))
+                                                            }
+                                                        },
+                                                        None => {
+                                                            let msg = format!("Expected `,` to separate or `}}` to close.");
+                                                            return Err(ZigurateError::SyntaxError(msg))
+                                                        }
+                                                    }
+
+                                                },
+                                                None => {
+                                                    let msg = format!("Syntax error in anki call. Expected property's value.");
+                                                    return Err(ZigurateError::SyntaxError(msg))
+                                                }
+                                            }
+                                        } else {
+                                            let msg = format!("Syntax error in anki call. Expected `:`.");
+                                            return Err(ZigurateError::SyntaxError(msg))
+                                        }
+
+                                    },
+                                    None => {
+                                        let msg = format!("Syntax error in anki call. Expected a symbol `:`");
+                                        return Err(ZigurateError::SyntaxError(msg))
+                                    }
+
+                                }
+
+                            },
+                            None => {
+                                let msg = format!("Syntax error in anki call. Expected property's key.");
+                                return Err(ZigurateError::SyntaxError(msg))
+                            }
+
+                        }
+                    
+                    }
+
+                    
+                    let close_brack = self.see();
+
+                    match close_brack {
+                        Some(bracket) => {
+
+                            let char_bra = from_utf8(bracket.value).unwrap().chars().next().unwrap();
+
+                            if char_bra == '}' {
+                                self.step();
+                                let expr = EXPR_Primi::Dumune(internal_properties);
+                                return Ok(expr);
+                            } else {
+                                let msg = format!("Expected `}}` to close.");
+                                return Err(ZigurateError::SyntaxError(msg))
+                            }
+
+                        },
+                        None => {
+                            let msg = format!("Expected `}}` to close.");
+                            return Err(ZigurateError::SyntaxError(msg))
+                        }
+                    }
+                    
                 } else {
 
                     let value = from_utf8(tk.value)?.chars().next().unwrap();
@@ -462,6 +696,7 @@ impl<'a> AST<'a> {
 
             }
             
+
             
             _ => Ok(EXPR_Primi::Empty)
         }
@@ -470,11 +705,11 @@ impl<'a> AST<'a> {
 
 
 
-
     pub fn parse_primary(&mut self) -> Result<STRT_Zilamma, ZigurateError> {
 
         let node = self.step().to_owned();
 
+        // println!("{:?}", from_utf8(node.value).unwrap());
 
         match node.primi {
 
@@ -487,14 +722,11 @@ impl<'a> AST<'a> {
 
                     let tr_cal_name = from_utf8(node.value)?.to_string(); // c1=name | c2=obj
 
-                    let tok_now = self.see().unwrap();
+                    let tok_now = self.see().unwrap(); 
                     let tok_next = self.see_next().unwrap();
 
                     let tok_now_val = from_utf8(tok_now.value)?.chars().next().unwrap();
                     let tok_next_val = from_utf8(tok_next.value)?.chars().next().unwrap();
-
-                    // println!("{:?}", tok_now_val);
-
 
                     match tok_now.primi {
 
@@ -518,7 +750,7 @@ impl<'a> AST<'a> {
                             } else if tok_now_val == '.' && tok_next_val != ':' {
 
                                 self.step(); // '.'
-                                let properties = self.parse_properties(&tr_cal_name)?;
+                                let properties = self.parse_properties(&tr_cal_name)?; // obj.name 
 
                                 let tr_equal_tok = self.see();
 
@@ -530,17 +762,55 @@ impl<'a> AST<'a> {
                                             Primi::Symbol => {
 
                                                 self.step();
-                                                let tr_value = self.parse_expr()?;
+                                                let next_tok = self.see();
 
-                                                let edit_m_lunig = TEMEM_EditLunig {
-                                                    lunig_id: tr_cal_name,
-                                                    path_prop: properties,
-                                                    new_value: tr_value
-                                                };
+                                                match next_tok {
 
-                                                let zilamma = STRT_Zilamma::EditLunig(edit_m_lunig);
-                                                Ok(zilamma)
+                                                    Some(nxt_tk) => {
 
+                                                        match nxt_tk.primi {
+                                                            Primi::Kwd_Anki => {
+
+                                                                let tr_value = self.parse_primary()?;
+                                                                let expr_zillama = EXPR_Primi::Zilamma(Box::new(tr_value));
+
+                                                                let edit_m_lunig = TEMEM_EditLunig {
+                                                                    lunig_id: tr_cal_name,
+                                                                    path_prop: properties,
+                                                                    new_value: expr_zillama
+                                                                };
+
+                                                                // println!("{:?}", edit_m_lunig);
+
+                                                                let zilamma = STRT_Zilamma::EditLunig(edit_m_lunig);
+                                                                return Ok(zilamma);
+
+                                                            }
+                                                            _ => {
+
+                                                                let tr_value = self.parse_expr()?;
+
+                                                                let edit_m_lunig = TEMEM_EditLunig {
+                                                                    lunig_id: tr_cal_name,
+                                                                    path_prop: properties,
+                                                                    new_value: tr_value
+                                                                };
+
+                                                                let zilamma = STRT_Zilamma::EditLunig(edit_m_lunig);
+                                                                return Ok(zilamma);
+                                                            }
+                                                        };                                                
+
+
+                                                    }
+
+                                                    None => {
+                                                        Err(ZigurateError::SyntaxError("Expected lunig's property value. Got nil.".to_string()))
+                                                    }
+
+                                                }
+
+                                                
                                             }
 
                                             _ => {
@@ -555,6 +825,108 @@ impl<'a> AST<'a> {
                                     }
                                 }
                             
+
+                            } else if tok_now_val == ':' && tok_next_val == ':' {
+
+                                self.step(); // :
+                                self.step(); // :
+                                                                
+                                let property_val = self.see();
+
+                                match property_val {
+                                    Some(dumu) => {
+
+                                        let dumu_key = from_utf8(dumu.value).unwrap().to_string(); 
+                                        self.step();
+
+                                        let nxt_dot = self.see();
+
+                                        match nxt_dot {
+                                            Some(nxt) => {
+
+                                                match nxt.primi {
+                                                    Primi::Symbol => {
+
+                                                        if nxt.value == b"." {
+
+                                                            self.step();
+
+                                                            let dumu_property = self.see();
+
+                                                            match dumu_property {
+                                                                Some(prop) => {
+
+                                                                    let dumu_prop = from_utf8(prop.value).unwrap().to_string();
+                                                                    self.step();
+
+                                                                    
+                                                                    let equal_sign_tk = self.see();
+
+                                                                    match equal_sign_tk {
+                                                                        Some(sign_eq) => {
+
+                                                                            if sign_eq.value == b"=" {
+
+                                                                                self.step();
+                                                                                
+                                                                                let tr_value = self.parse_expr()?;
+                                                                                let properties = EXPR_Primi::PathProperties(vec![tr_cal_name.clone(), dumu_key, dumu_prop]);
+
+                                                                                let edit_m_lunig = TEMEM_EditLunig {
+                                                                                    lunig_id: tr_cal_name,
+                                                                                    path_prop: properties,
+                                                                                    new_value: tr_value
+                                                                                };
+
+                                                                                let zilamma = STRT_Zilamma::EditLunig(edit_m_lunig);
+                                                                                return Ok(zilamma);
+
+                                                                            } else {
+                                                                                let msg = format!("Expected specifically `=` after DumuReference. Got an unknown symbol.");
+                                                                                return Err(ZigurateError::SyntaxError(msg))
+                                                                            }
+
+                                                                        },
+                                                                        None => {
+                                                                            let msg = format!("Expected `=` after DumuReference.");
+                                                                            return Err(ZigurateError::SyntaxError(msg))
+                                                                        }
+                                                                    }
+
+
+                                                                },
+                                                                None => {
+                                                                    let msg = format!("Expected `propertyName` in DumuReference.");
+                                                                    return Err(ZigurateError::SyntaxError(msg))
+                                                                }
+                                                            }
+
+                                                        } else {
+                                                            let msg = format!("Syntax Error. You are specifying a property with an unknown symbol. Use `.` like `obj::dumu.property`.");
+                                                            return Err(ZigurateError::SyntaxError(msg))
+                                                        }
+
+                                                    },
+                                                    _ => {
+                                                        let msg = format!("Syntax Error. You are using `obj::dumu` alone, you can't do it. Use `.` like `obj::dumu.property` to specify an internal value.");
+                                                        return Err(ZigurateError::SyntaxError(msg))  
+                                                    }
+                                                }
+
+                                            },
+                                            None => {
+                                                let msg = format!("Syntax Error. Expected a DumuStructure lik `obj::dumu.property`.");
+                                                return Err(ZigurateError::SyntaxError(msg))  
+                                            }
+                                        }
+
+                                    },
+                                    None => {
+                                        let msg = format!("Expected DumuObject after `::` as in `obj::dumu`.");
+                                        return Err(ZigurateError::SyntaxError(msg))
+                                    }
+                                }
+
 
                             } else if tok_now_val == '.' && tok_next_val == ':' {
 
@@ -603,12 +975,14 @@ impl<'a> AST<'a> {
 
                 Primi::Kwd_Variable => {
 
-                    let ident = self.step();
-                    let uda_name = from_utf8(ident.value)?.to_string();
+                    // uda name = names[0]
 
-                    let uda_signal = from_utf8(self.step().to_owned().value)?.to_string();
+                    let ident = self.step(); // uda
+                    let uda_name = from_utf8(ident.value)?.to_string(); // name
 
-                    let sign_modificator = self.see();
+                    let uda_signal = from_utf8(self.step().to_owned().value)?.to_string(); // =
+
+                    let sign_modificator = self.see(); // @nisa
 
                     match sign_modificator {
                         Some(e) => {
@@ -631,7 +1005,7 @@ impl<'a> AST<'a> {
 
                                                 match modifier.primi {
 
-                                                    Kwd_Modificators => {
+                                                    Primi::Kwd_Modificators => {
 
                                                         if modifier_name == "nisa" {
 
@@ -699,6 +1073,8 @@ impl<'a> AST<'a> {
                                         value: uda_value, 
                                         is_nisa: false 
                                     };
+
+                                    // println!("{:?}", uda);
 
                                     let zilamma = STRT_Zilamma::DeclUda(uda);
 
@@ -920,6 +1296,257 @@ impl<'a> AST<'a> {
                 }
 
 
+
+                Primi::Kwd_Suma => {
+
+                    let mut conditions: Vec<EXPR_Primi> = Vec::new();
+                    let mut acts_suma: Vec<STRT_Zilamma> = Vec::new();
+                    let mut acts_li: Vec<STRT_Zilamma> = Vec::new();
+
+
+                    // get all conditions until `{`
+                    while self.see().is_some() && self.see().unwrap().value != b"{" {
+                        
+                        let tk = self.see().unwrap();
+                        let tk_val = from_utf8(tk.value).unwrap().to_string();
+                        
+                        match tk.primi {
+                            
+                            Primi::Kwd_ComparationOP => {
+
+                                if tk_val == "and" {
+                                    self.step();
+                                    conditions.push(EXPR_Primi::OPT_AND);
+                                    continue;
+                                } else if tk_val == "or" {
+                                    self.step();
+                                    conditions.push(EXPR_Primi::OPT_OR);
+                                    continue;
+                                } else if tk_val == "is" {
+                                    self.step();
+                                    conditions.push(EXPR_Primi::OPT_IS);
+                                    continue;
+                                } else if tk_val == "is_not" {
+                                    self.step();
+                                    conditions.push(EXPR_Primi::OPT_IS_NOT);
+                                    continue;
+                                } else if tk_val == "is_more" {
+                                    self.step();
+                                    conditions.push(EXPR_Primi::OPT_IS_MORE);
+                                    continue;
+                                } else if tk_val == "is_more_eq" {
+                                    self.step();
+                                    conditions.push(EXPR_Primi::OPT_IS_MORE_EQ);
+                                    continue;
+                                } else if tk_val == "is_less" {
+                                    self.step();
+                                    conditions.push(EXPR_Primi::OPT_IS_LESS);
+                                    continue;
+                                } else if tk_val == "is_less_eq" {
+                                    self.step();
+                                    conditions.push(EXPR_Primi::OPT_IS_LESS_EQ);
+                                    continue;
+                                } else {
+                                    let msg = format!("Operator Unknown not found. Use `is`, `is_not`, `is_more`, `is_more_eq`, `is_less` or `is_less_eq` instead.");
+                                    return Err(ZigurateError::SyntaxError(msg))
+                                }
+
+                            },
+
+                            Primi::Boolean => {
+                                self.step();
+                                let parsed = tk_val.parse::<bool>().unwrap();
+                                let expr = EXPR_Primi::Boolean(parsed);
+                                conditions.push(expr);
+                                continue;
+                            },
+
+                            Primi::Identifier => {
+                                self.step();
+                                let expr = EXPR_Primi::Identifier(tk_val);
+                                conditions.push(expr);
+                                continue;
+                            },
+                            
+                            Primi::String => {
+                                self.step();
+                                let expr = EXPR_Primi::String(tk_val);
+                                conditions.push(expr);
+                                continue;
+                            },
+                            
+                            Primi::Integer => {
+                                self.step();
+                                let expr = EXPR_Primi::Integer(tk_val.parse::<i32>().unwrap());
+                                conditions.push(expr);
+                                continue;
+                            },
+                            
+                            Primi::Floating => {
+                                self.step();
+                                let expr = EXPR_Primi::Floating(tk_val.parse::<f32>().unwrap());
+                                conditions.push(expr);
+                                continue;
+                            },
+
+                            _ => {
+                                let msg = format!("This type of value is not supported to be used as condition");
+                                return Err(ZigurateError::TypeNotSupported(msg))
+                            }
+                        }
+                    }
+
+                    let open_brack = self.see();
+
+                    match open_brack {
+                        Some(op_b) => {
+
+                            if op_b.value == b"{" {
+
+                                self.step();
+
+                                while self.see().is_some() && self.see().unwrap().value != b"}" {
+                                    let zil = self.parse_primary()?;
+                                    acts_suma.push(zil);
+                                }
+
+                                let close_brack = self.see();
+
+                                match close_brack {
+                                    Some(c_bra) => {
+
+                                        if c_bra.value == b"}" {
+
+                                            self.step();
+                                            let proba_li = self.see();
+                                            
+
+                                            match proba_li {
+                                                Some(v) => {
+
+                                                    match v.primi {
+
+                                                        Primi::Kwd_Simple => {
+
+                                                            if v.value == b"li" {
+
+                                                                self.step();
+                                                                let opened_bracket = self.see();
+
+                                                                match opened_bracket {
+                                                                    Some(o_b) => {
+
+                                                                        if o_b.value == b"{" {
+
+                                                                            self.step();
+
+                                                                            while self.see().is_some() && self.see().unwrap().value != b"}" {
+                                                                                let zil = self.parse_primary()?;
+                                                                                acts_li.push(zil);
+                                                                            }
+
+                                                                            let closed_bra = self.see();
+
+                                                                            match closed_bra {
+                                                                                Some(c_b) => {
+
+                                                                                    if c_b.value == b"}" {
+
+                                                                                        self.step();
+
+                                                                                        let suma = TEMEM_Suma {
+                                                                                            conditions: conditions,
+                                                                                            acts_suma: acts_suma,
+                                                                                            acts_li: acts_li
+                                                                                        };
+
+                                                                                        let zil = STRT_Zilamma::Suma(suma);
+                                                                                        Ok(zil)
+
+                                                                                    } else {
+                                                                                        let msg = format!("Expected `}}` to close `li` declaration in `SumaDeclaration`.");
+                                                                                        return Err(ZigurateError::SyntaxError(msg))
+                                                                                    }
+                                                                                },
+                                                                                None => {
+                                                                                    let msg = format!("Expected `}}` to close `li` declaration in `SumaDeclaration`.");
+                                                                                    return Err(ZigurateError::SyntaxError(msg))
+                                                                                }
+                                                                            }
+
+                                                                        } else {
+                                                                            let msg = format!("Expected `{{` after `li` declaration in `SumaDeclaration`.");
+                                                                            return Err(ZigurateError::SyntaxError(msg))
+                                                                        }
+                                                                        
+                                                                    },
+                                                                    None => {
+                                                                        let msg = format!("Expected `{{` after `li` declaration in `SumaDeclaration`.");
+                                                                        return Err(ZigurateError::SyntaxError(msg))
+                                                                    }
+                                                                }
+
+                                                            } else {
+                                                                let msg = format!("Expected `}} li {{}}` after `suma` declaration in `SumaDeclaration`.");
+                                                                return Err(ZigurateError::SyntaxError(msg))
+                                                            }
+
+                                                        },
+                                                        _ => {
+
+                                                            let suma = TEMEM_Suma {
+                                                                conditions: conditions,
+                                                                acts_suma: acts_suma,
+                                                                acts_li: vec![]
+                                                            };
+
+                                                            let zil = STRT_Zilamma::Suma(suma);
+                                                            Ok(zil)
+
+                                                        }
+
+                                                    }
+
+                                                },
+                                                None => {
+
+                                                    let suma = TEMEM_Suma {
+                                                        conditions: conditions,
+                                                        acts_suma: acts_suma,
+                                                        acts_li: vec![]
+                                                    };
+
+                                                    let zil = STRT_Zilamma::Suma(suma);
+                                                    Ok(zil)
+
+                                                }
+                                            }
+
+                                        } else {
+                                            let msg = format!("Expected `}}` to close in `SumaDeclaration`.");
+                                            return Err(ZigurateError::SyntaxError(msg))
+                                        }
+
+                                    },
+                                    None => {
+                                        let msg = format!("Expected `}}` to close in `SumaDeclaration`.");
+                                        return Err(ZigurateError::SyntaxError(msg))
+                                    }
+                                }
+
+                            } else {
+                                let msg = format!("Expected `{{` after conditions.");
+                                return Err(ZigurateError::SyntaxError(msg))
+                            }
+
+                        },
+                        None => {
+                            let msg = format!("Expected `{{` after conditions.");
+                            return Err(ZigurateError::SyntaxError(msg))
+                        }
+                    }
+
+                }
 
 
                 _ => todo!()

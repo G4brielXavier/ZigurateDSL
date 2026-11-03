@@ -1,9 +1,8 @@
 
-use std::{any::Any, path::PathBuf, println};
+use core::panic;
+use std::{path::PathBuf, println};
 
-use dirs::picture_dir;
-
-use crate::{core::{error::ZigurateError, utils::primi::{EXPR_Primi, SignalType}}, enki_vm::{EnkiInstruction, UdaDeclarationType, compiler::{convert_to_uda_declaration, extr_expr_string, get_expr_id}}};
+use crate::{core::{error::ZigurateError, utils::primi::{EXPR_Primi, SignalType}}, enki_vm::{EnkiInstruction, SumaOperator, UdaDeclarationType, compiler::{convert_to_uda_declaration, get_expr_id}}};
 use crate::enki_vm::compiler::extr_udatype_string;
 use crate::core::zigurage_compiler_simple;
 use crate::cli::get_enki_data;
@@ -20,8 +19,61 @@ pub type LunigData = HashMap<String, HashMap<String, UdaDeclarationType>>;
 
 
 
+#[derive(Debug, PartialEq)]
+struct SumaVisualizer {
+    pub data: Vec<SumaOperator>,
+    pub i: usize
+}
+
+
+impl SumaVisualizer {
+    pub fn new(data: Vec<SumaOperator>) -> Self {
+        Self { data, i: 0 }
+    }
+
+
+    pub fn previous(&mut self) -> Option<SumaOperator> {
+        if self.i > 0 {
+            Some(self.data[self.i-1].clone())
+        } else {
+            None
+        }
+    }
+
+
+    pub fn see(&mut self) -> Option<SumaOperator> {
+        if self.i < self.data.len() {
+            Some(self.data[self.i].clone())
+        } else {
+            None
+        }
+    }
+
+    pub fn next(&mut self) -> Option<SumaOperator> {
+        if self.i + 1 < self.data.len() {
+            Some(self.data[self.i+1].clone())
+        } else {
+            None
+        }
+    }
+
+    pub fn step(&mut self) -> SumaOperator {
+        let data = self.data[self.i].clone();
+        self.i += 1;
+        return data
+    }
+}
+
+
+
+
+
+
+
+
 
 fn val_to_expr(val: String) -> EXPR_Primi {
+
 
     if let Ok(v) = val.parse::<bool>() {
         return EXPR_Primi::Boolean(v)
@@ -39,6 +91,106 @@ fn val_to_expr(val: String) -> EXPR_Primi {
     EXPR_Primi::String(val)
 
 }
+
+
+
+
+
+fn manage_nv_condition(num_nvs_cond: &mut Vec<i8>, sumas: &mut SumaVisualizer) {
+
+    while sumas.see().is_some() {
+
+        let suma = sumas.see();
+
+        match suma {
+            Some(op) => {
+
+                match op {
+                    SumaOperator::TRUE => {
+                        let state = &mut num_nvs_cond[sumas.i];
+                        *state += 1;
+                        sumas.step();
+                        continue;
+                    },
+                    SumaOperator::FALSE => {
+                        let state = &mut num_nvs_cond[sumas.i];
+                        *state -= 1;
+                        sumas.step();
+                        continue;
+                    },
+                    SumaOperator::AND => {
+                        sumas.step();
+                        continue;
+                    },
+                    SumaOperator::OR => {
+
+                        let next = sumas.next();
+
+                        if num_nvs_cond[sumas.i-1] >= 1 {
+                            let state = &mut num_nvs_cond[sumas.i];
+                            *state += 1;
+                            sumas.step();
+                            continue;
+                        }
+
+                        match next {
+                            Some(op_n) => {
+
+                                match op_n {
+                                    SumaOperator::TRUE => {
+                                        let state = &mut num_nvs_cond[sumas.i];
+                                        *state += 1;
+                                        sumas.step();
+                                        continue;
+                                    },
+                                    SumaOperator::FALSE => {
+                                        let state = &mut num_nvs_cond[sumas.i];
+                                        *state -= 1;
+                                        sumas.step();
+                                        continue;
+                                    },
+                                    _ => break
+                                }
+
+                            },
+                            None => break
+                        }
+                    }
+                    SumaOperator::IS => {
+                        sumas.step();
+                        continue;
+                    },
+                    SumaOperator::IS_NOT => {
+                        sumas.step();
+                        continue;
+                    },
+                    SumaOperator::IS_MORE => {
+                        sumas.step();
+                        continue;
+                    },
+                    SumaOperator::IS_MORE_EQ => {
+                        sumas.step();
+                        continue;
+                    },
+                    SumaOperator::IS_LESS => {
+                        sumas.step();
+                        continue;
+                    },
+                    SumaOperator::IS_LESS_EQ => {
+                        sumas.step();
+                        continue;
+                    },
+                }
+
+            },
+            None => break
+        }
+
+    }
+
+}
+
+
 
 
 
@@ -194,6 +346,8 @@ impl EnkiVM {
 
                                 let ele_in_vec = vec_data.get(arr_idx);
 
+
+
                                 match ele_in_vec {
                                     Some(v) => {
 
@@ -223,7 +377,8 @@ impl EnkiVM {
 
                                     }
                                     None => {
-
+                                        let msg_uda = extr_udatype_string(&uda_value)?;
+                                        println!("{}", msg_uda);
                                     }
                                 }
 
@@ -262,33 +417,61 @@ impl EnkiVM {
                     match lunig_founded {
                         Some(lunig)  => {
 
-                            for (i, prop) in rest.iter().enumerate() {
+                            let prop = &rest[0];
+                            let data = lunig.get(prop);                                
 
-                                if i >= rest.len() {
-                                    break;
-                                }
+                            match data {
+                                Some(v) => {
+                                    
+                                    if rest.len() == 1 {
 
-                                let data = lunig.get(prop);
-                                
-
-                                match data {
-                                    Some(v) => {
-                                        
                                         match v {
                                             _ => {
                                                 let val = extr_udatype_string(v)?;
                                                 println!("{}", val);
-                                                break
+                                                continue;
+                                            }       
+                                        }
+
+                                    } else {
+
+                                        match v {
+                                            UdaDeclarationType::Object(obj) => {
+
+                                                let k_prop_dumu = &rest[1];
+                                                let v_p_dumu = obj.get(k_prop_dumu);
+
+                                                match v_p_dumu {
+                                                    Some(v) => {
+
+                                                        match v {
+                                                            _ => {
+                                                                let val = extr_udatype_string(v)?;
+                                                                println!("{}", val);
+                                                                continue;
+                                                            }       
+                                                        }
+
+                                                    },
+                                                    None => {
+                                                        let msg = format!("Not found property `{}` in dumu `{}::{}` from.", k_prop_dumu, k_start, prop);
+                                                        panic!("{}", ZigurateError::PropertyNotFound(msg))
+                                                    }
+                                                }
+
+                                            },
+                                            _ => {
+
                                             }
                                         }
 
-                                    },
-                                    None => {
-                                        let msg = format!("Not found property `{}` in lunig `{}`.", k_start, prop);
-                                        panic!("{}", ZigurateError::PropertyNotFound(msg))
                                     }
-                                }
 
+                                },
+                                None => {
+                                    let msg = format!("Not found property `{}` in lunig `{}`.", k_start, prop);
+                                    panic!("{}", ZigurateError::PropertyNotFound(msg))
+                                }
                             }
 
                         },
@@ -296,6 +479,7 @@ impl EnkiVM {
                             let msg = format!("A lunig called `{}` not found or not exists.", k_start);
                             panic!("{}", ZigurateError::NotFound(msg))
                         }
+
                     }
 
                 },
@@ -481,12 +665,12 @@ impl EnkiVM {
                                 let prop = &edit_lunig.properties[1];
                                 let prop_found = lunig.get_mut(prop);
 
-
                                 match prop_found {
 
                                     Some(value) => {
 
-                                        *value = edit_lunig.new_value
+                                        *value = edit_lunig.new_value;
+
 
                                     }
                                     None => {
@@ -495,7 +679,49 @@ impl EnkiVM {
 
                                 }
 
+                            } else if edit_lunig.properties.len() == 3 {
 
+                                let prop = &edit_lunig.properties[1];
+                                let prop_found = lunig.get_mut(prop);
+
+                                match prop_found {
+
+                                    Some(value) => {
+
+                                        match value {
+
+                                            UdaDeclarationType::Object(dumu) => {
+
+                                                let prop_dumu = &edit_lunig.properties[2];
+                                                let dumu_found = dumu.get_mut(prop_dumu);
+
+                                                match dumu_found {
+                                                    Some(dum) => {
+
+                                                        *dum = edit_lunig.new_value;
+
+                                                    },
+                                                    None => {
+                                                        dumu.insert(prop_dumu.clone(), edit_lunig.new_value);
+                                                    }
+                                                }
+
+                                            },
+                                            _ => {
+                                                let msg = format!("Not exist a DumuObject called `{}` in `{}`", prop, edit_lunig.name);
+                                                panic!("{}", ZigurateError::NotFound(msg));
+                                            }
+
+                                        }
+
+
+                                    }
+                                    None => {
+                                        let msg = format!("Not exist a DumuObject called `{}` in `{}`", prop, edit_lunig.name);
+                                        panic!("{}", ZigurateError::NotFound(msg));
+                                    }
+
+                                }
                             
                             } else {
                                 let msg = format!("lunig can only accept one propertie, example: `obj.name`\n -- To use more, see about `tud` in documentation.");
@@ -1014,6 +1240,1482 @@ impl EnkiVM {
                     } 
 
                 }
+
+
+
+
+                
+
+                EnkiInstruction::INST_SUMA(suma) => {
+
+                    let mut suma_operator_states: Vec<SumaOperator> = Vec::with_capacity(suma.conditions.len());
+
+                    let mut i_cond: usize = 0;
+                    for condition in suma.conditions.iter() {
+
+                        match condition {
+                            UdaDeclarationType::Integer(val) => {
+                                
+                                if i_cond + 1 == suma.conditions.len() {
+                                    continue;
+                                }
+
+                                let op_relational = &suma.conditions[i_cond+1];
+                                let op_second_val = &suma.conditions[i_cond+2];
+
+                                match op_relational {
+
+                                    UdaDeclarationType::IS => {
+                                        match op_second_val {
+                                            UdaDeclarationType::Integer(v) => {
+
+                                                if *val == *v {
+                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                } else {
+                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                }
+
+                                            }                                            
+                                            _ => {
+                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                            }
+                                        }
+                                    },
+                                    UdaDeclarationType::IS_NOT => {
+                                        match op_second_val {
+                                            UdaDeclarationType::Integer(v) => {
+
+                                                if *val != *v {
+                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                } else {
+                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                }
+
+                                            }                                            
+                                            _ => {
+                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                            }
+                                        }
+                                    },
+                                    UdaDeclarationType::IS_MORE => {
+                                        match op_second_val {
+                                            UdaDeclarationType::Integer(v) => {
+
+                                                if *val > *v {
+                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                } else {
+                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                }
+
+                                            }                                            
+                                            _ => {
+                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                            }
+                                        }
+                                    },
+                                    UdaDeclarationType::IS_MORE_EQ => {
+                                        match op_second_val {
+                                            UdaDeclarationType::Integer(v) => {
+
+                                                if *val >= *v {
+                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                } else {
+                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                }
+
+                                            }                                            
+                                            _ => {
+                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                            }
+                                        }
+                                    },
+                                    UdaDeclarationType::IS_LESS => {
+                                        match op_second_val {
+                                            UdaDeclarationType::Integer(v) => {
+
+                                                if *val < *v {
+                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                } else {
+                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                }
+
+                                            }                                            
+                                            _ => {
+                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                            }
+                                        }
+                                    },
+                                    UdaDeclarationType::IS_LESS_EQ => {
+                                        match op_second_val {
+                                            UdaDeclarationType::Integer(v) => {
+
+                                                if *val <= *v {
+                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                } else {
+                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                }
+
+                                            }                                            
+                                            _ => {
+                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                            }
+                                        }
+                                    },
+
+                                    _ => {
+                                        let msg = format!("Expected a RelationalOperator. Found Syntax Error.");
+                                        panic!("{}", ZigurateError::SyntaxError(msg));
+                                    }
+
+                                }
+
+
+                            }
+                            UdaDeclarationType::Floating(val) => {
+                                
+                                if i_cond + 1 == suma.conditions.len() {
+                                    continue;
+                                }
+
+                                let op_relational = &suma.conditions[i_cond+1];
+                                let op_second_val = &suma.conditions[i_cond+2];
+
+                                match op_relational {
+
+                                    UdaDeclarationType::IS => {
+                                        match op_second_val {
+                                            UdaDeclarationType::Floating(v) => {
+
+                                                if *val == *v {
+                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                } else {
+                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                }
+
+                                            }                                            
+                                            _ => {
+                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                            }
+                                        }
+                                    },
+                                    UdaDeclarationType::IS_NOT => {
+                                        match op_second_val {
+                                            UdaDeclarationType::Floating(v) => {
+
+                                                if *val != *v {
+                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                } else {
+                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                }
+
+                                            }                                            
+                                            _ => {
+                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                            }
+                                        }
+                                    },
+                                    UdaDeclarationType::IS_MORE => {
+                                        match op_second_val {
+                                            UdaDeclarationType::Floating(v) => {
+
+                                                if *val > *v {
+                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                } else {
+                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                }
+
+                                            }                                            
+                                            _ => {
+                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                            }
+                                        }
+                                    },
+                                    UdaDeclarationType::IS_MORE_EQ => {
+                                        match op_second_val {
+                                            UdaDeclarationType::Floating(v) => {
+
+                                                if *val >= *v {
+                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                } else {
+                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                }
+
+                                            }                                            
+                                            _ => {
+                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                            }
+                                        }
+                                    },
+                                    UdaDeclarationType::IS_LESS => {
+                                        match op_second_val {
+                                            UdaDeclarationType::Floating(v) => {
+
+                                                if *val < *v {
+                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                } else {
+                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                }
+
+                                            }                                            
+                                            _ => {
+                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                            }
+                                        }
+                                    },
+                                    UdaDeclarationType::IS_LESS_EQ => {
+                                        match op_second_val {
+                                            UdaDeclarationType::Floating(v) => {
+
+                                                if *val <= *v {
+                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                } else {
+                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                    i_cond += 1;
+                                                    continue;
+                                                }
+
+                                            }                                            
+                                            _ => {
+                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                            }
+                                        }
+                                    },
+
+                                    _ => {
+                                        let msg = format!("Expected a RelationalOperator. Found Syntax Error.");
+                                        panic!("{}", ZigurateError::SyntaxError(msg));
+                                    }
+
+                                }
+
+
+                            }
+                            UdaDeclarationType::Boolean(bool) => {
+                                if *bool {
+                                    suma_operator_states.push(SumaOperator::TRUE);
+                                    i_cond += 1;
+                                    continue;
+                                } else {
+                                    suma_operator_states.push(SumaOperator::FALSE);
+                                    i_cond += 1;
+                                    continue;
+                                }
+                            },
+                            UdaDeclarationType::Identifier(name) => {
+
+                                let uda_found = self.uda_hash.get(name);
+                                
+                                match uda_found {
+                                    Some(uda) => {
+
+                                        let uda_value = uda.get("value").unwrap();
+
+                                        match uda_value {
+                                            UdaDeclarationType::Boolean(val) => {
+
+                                                if i_cond + 1 == suma.conditions.len() {
+                                                    continue;
+                                                }
+
+                                                if suma.conditions.len() == 1 {
+                                                    if *val {
+                                                        suma_operator_states.push(SumaOperator::TRUE);
+                                                        i_cond += 1;
+                                                        continue;
+                                                    } else {
+                                                        suma_operator_states.push(SumaOperator::FALSE);
+                                                        i_cond += 1;
+                                                        continue;
+                                                    }
+                                                }
+
+                                                let op_relational = &suma.conditions[i_cond+1];
+                                                let op_second_val = &suma.conditions[i_cond+2];
+
+                                                match op_relational {
+
+                                                    UdaDeclarationType::IS => {
+
+                                                        match op_second_val {
+
+                                                            UdaDeclarationType::Boolean(val_cond) => {
+                                                                if *val == *val_cond {
+                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                } else {
+                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                }
+                                                            },
+
+                                                            UdaDeclarationType::Identifier(uda) => {
+
+                                                                let uda_found = self.uda_hash.get(uda);
+
+                                                                match uda_found {
+
+                                                                    Some(udaf) => {
+
+                                                                        let second_val = udaf.get("value").unwrap();
+
+                                                                        match second_val {
+                                                                            UdaDeclarationType::Boolean(val_cond) => {
+
+                                                                                if *val == *val_cond {
+                                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                } else {
+                                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                }
+
+                                                                            },
+                                                                            _ => {
+                                                                                let msg = format!("You are trying to compare a boolean with `{:?}`. It is wrong.", second_val);
+                                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                                            }
+                                                                        }
+
+                                                                    },
+
+                                                                    None => {
+                                                                        let msg = format!("Not found an Uda called `{}`.", uda);
+                                                                        panic!("{}", ZigurateError::NotFound(msg));
+                                                                    }
+
+                                                                }
+
+                                                            } 
+
+                                                            _ => {
+                                                                let msg = format!("You are trying to compare a boolean with `{:?}`. It is wrong.", op_second_val);
+                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                            }
+
+                                                        }
+
+                                                    },
+                                                    UdaDeclarationType::IS_NOT => {
+
+                                                        match op_second_val {
+
+                                                            UdaDeclarationType::Boolean(val_cond) => {
+                                                                if *val != *val_cond {
+                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                } else {
+                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                }
+                                                            },
+
+                                                            _ => {
+                                                                let msg = format!("You are trying to compare a boolean with `{:?}`. It is wrong.", op_second_val);
+                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                            }
+
+                                                        }
+
+                                                    },
+
+                                                    _ => {
+                                                        let msg = format!("To compare booleans is used only `is` or `is_not`. Like: `a is true` or `b is_not false`");
+                                                        panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                    }
+                                                }
+
+                                            },
+                                            UdaDeclarationType::String(val) => {
+
+                                                if i_cond + 1 == suma.conditions.len() {
+                                                    continue;
+                                                }
+
+                                                let op_sub_value = &suma.conditions[i_cond+1];
+                                                let op_cond_eq = &suma.conditions[i_cond+2];
+
+                                                match op_sub_value {
+
+                                                    UdaDeclarationType::IS => {
+                                                        
+                                                        match op_cond_eq {
+                                                            UdaDeclarationType::String(v) => {
+
+                                                                if *val == *v {
+                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                } else {
+                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                }
+
+                                                            }
+                                                            
+                                                            UdaDeclarationType::Identifier(uda) => {
+
+                                                                let uda_found = self.uda_hash.get(uda);
+
+                                                                match uda_found {
+
+                                                                    Some(udaf) => {
+
+                                                                        let second_val = udaf.get("value").unwrap();
+
+                                                                        match second_val {
+                                                                            UdaDeclarationType::String(val_cond) => {
+
+                                                                                if *val == *val_cond {
+                                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                } else {
+                                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                }
+
+                                                                            },
+                                                                            _ => {
+                                                                                let msg = format!("You are trying to compare a string with `{:?}`. It is wrong.", second_val);
+                                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                                            }
+                                                                        }
+
+                                                                    },
+
+                                                                    None => {
+                                                                        let msg = format!("Not found an Uda called `{}`.", uda);
+                                                                        panic!("{}", ZigurateError::NotFound(msg));
+                                                                    }
+
+                                                                }
+
+                                                            } 
+
+                                                            _ => {
+
+                                                            }
+                                                        }
+
+                                                    },
+                                                    
+                                                    UdaDeclarationType::IS_NOT => {
+                                                        
+                                                        match op_cond_eq {
+                                                            UdaDeclarationType::String(v) => {
+
+                                                                if *val != *v {
+                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                } else {
+                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                }
+
+                                                            }
+                                                            
+                                                            UdaDeclarationType::Identifier(uda) => {
+
+                                                                let uda_found = self.uda_hash.get(uda);
+
+                                                                match uda_found {
+
+                                                                    Some(udaf) => {
+
+                                                                        let second_val = udaf.get("value").unwrap();
+
+                                                                        match second_val {
+                                                                            UdaDeclarationType::String(val_cond) => {
+
+                                                                                if *val != *val_cond {
+                                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                } else {
+                                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                }
+
+                                                                            },
+                                                                            _ => {
+                                                                                let msg = format!("You are trying to compare a string with `{:?}`. It is wrong.", second_val);
+                                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                                            }
+                                                                        }
+
+                                                                    },
+
+                                                                    None => {
+                                                                        let msg = format!("Not found an Uda called `{}`.", uda);
+                                                                        panic!("{}", ZigurateError::NotFound(msg));
+                                                                    }
+
+                                                                }
+
+                                                            } 
+
+                                                            _ => {
+
+                                                            }
+                                                        }
+
+                                                    },
+
+                                                    _ => {
+
+                                                    }
+
+                                                }
+
+                                            },
+                                            UdaDeclarationType::Integer(val) => {
+
+                                                let op_relational = &suma.conditions[i_cond+1];
+                                                let op_second_val = &suma.conditions[i_cond+2];
+
+                                                match op_relational {
+
+                                                    UdaDeclarationType::IS => {
+                                                        match op_second_val {
+
+                                                            UdaDeclarationType::Integer(v) => {
+
+                                                                if *val == *v {
+                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                } else {
+                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                }
+
+                                                            }                                            
+                                                            
+                                                            UdaDeclarationType::Identifier(uda) => {
+
+                                                                let uda_found = self.uda_hash.get(uda);
+
+                                                                match uda_found {
+
+                                                                    Some(udaf) => {
+
+                                                                        let second_val = udaf.get("value").unwrap();
+
+                                                                        match second_val {
+                                                                            UdaDeclarationType::Integer(val_cond) => {
+
+                                                                                if *val == *val_cond {
+                                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                } else {
+                                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                }
+
+                                                                            },
+                                                                            _ => {
+                                                                                let msg = format!("You are trying to compare a integer with `{:?}`. It is wrong.", second_val);
+                                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                                            }
+                                                                        }
+
+                                                                    },
+
+                                                                    None => {
+                                                                        let msg = format!("Not found an Uda called `{}`.", uda);
+                                                                        panic!("{}", ZigurateError::NotFound(msg));
+                                                                    }
+
+                                                                }
+
+                                                            } 
+
+
+                                                            _ => {
+                                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                            }
+                                                        }
+                                                    },
+                                                    UdaDeclarationType::IS_NOT => {
+                                                        match op_second_val {
+                                                            UdaDeclarationType::Integer(v) => {
+
+                                                                if *val != *v {
+                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                } else {
+                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                }
+
+                                                            },
+
+                                                            UdaDeclarationType::Identifier(uda) => {
+
+                                                                let uda_found = self.uda_hash.get(uda);
+
+                                                                match uda_found {
+
+                                                                    Some(udaf) => {
+
+                                                                        let second_val = udaf.get("value").unwrap();
+
+                                                                        match second_val {
+                                                                            UdaDeclarationType::Integer(val_cond) => {
+
+                                                                                if *val != *val_cond {
+                                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                } else {
+                                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                }
+
+                                                                            },
+                                                                            _ => {
+                                                                                let msg = format!("You are trying to compare a integer with `{:?}`. It is wrong.", second_val);
+                                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                                            }
+                                                                        }
+
+                                                                    },
+
+                                                                    None => {
+                                                                        let msg = format!("Not found an Uda called `{}`.", uda);
+                                                                        panic!("{}", ZigurateError::NotFound(msg));
+                                                                    }
+
+                                                                }
+
+                                                            } 
+
+
+                                                            _ => {
+                                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                            }
+                                                        }
+                                                    },
+                                                    UdaDeclarationType::IS_MORE => {
+                                                        match op_second_val {
+                                                            UdaDeclarationType::Integer(v) => {
+
+                                                                if *val > *v {
+                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                } else {
+                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                }
+
+                                                            },
+                                                            UdaDeclarationType::Identifier(uda) => {
+
+                                                                let uda_found = self.uda_hash.get(uda);
+
+                                                                match uda_found {
+
+                                                                    Some(udaf) => {
+
+                                                                        let second_val = udaf.get("value").unwrap();
+
+                                                                        match second_val {
+                                                                            UdaDeclarationType::Integer(val_cond) => {
+
+                                                                                if *val > *val_cond {
+                                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                } else {
+                                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                }
+
+                                                                            },
+                                                                            _ => {
+                                                                                let msg = format!("You are trying to compare a integer with `{:?}`. It is wrong.", second_val);
+                                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                                            }
+                                                                        }
+
+                                                                    },
+
+                                                                    None => {
+                                                                        let msg = format!("Not found an Uda called `{}`.", uda);
+                                                                        panic!("{}", ZigurateError::NotFound(msg));
+                                                                    }
+
+                                                                }
+
+                                                            } 
+                                         
+                                                            _ => {
+                                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                            }
+                                                        }
+                                                    },
+                                                    UdaDeclarationType::IS_MORE_EQ => {
+                                                        match op_second_val {
+                                                            UdaDeclarationType::Integer(v) => {
+
+                                                                if *val >= *v {
+                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                } else {
+                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                }
+
+                                                            },
+                                                            UdaDeclarationType::Identifier(uda) => {
+
+                                                                let uda_found = self.uda_hash.get(uda);
+
+                                                                match uda_found {
+
+                                                                    Some(udaf) => {
+
+                                                                        let second_val = udaf.get("value").unwrap();
+
+                                                                        match second_val {
+                                                                            UdaDeclarationType::Integer(val_cond) => {
+
+                                                                                if *val >= *val_cond {
+                                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                } else {
+                                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                }
+
+                                                                            },
+                                                                            _ => {
+                                                                                let msg = format!("You are trying to compare a integer with `{:?}`. It is wrong.", second_val);
+                                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                                            }
+                                                                        }
+
+                                                                    },
+
+                                                                    None => {
+                                                                        let msg = format!("Not found an Uda called `{}`.", uda);
+                                                                        panic!("{}", ZigurateError::NotFound(msg));
+                                                                    }
+
+                                                                }
+
+                                                            } 
+                                        
+                                                            _ => {
+                                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                            }
+                                                        }
+                                                    },
+                                                    UdaDeclarationType::IS_LESS => {
+                                                        match op_second_val {
+                                                            UdaDeclarationType::Integer(v) => {
+
+                                                                if *val < *v {
+                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                } else {
+                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                }
+
+                                                            },
+                                                            UdaDeclarationType::Identifier(uda) => {
+
+                                                                let uda_found = self.uda_hash.get(uda);
+
+                                                                match uda_found {
+
+                                                                    Some(udaf) => {
+
+                                                                        let second_val = udaf.get("value").unwrap();
+
+                                                                        match second_val {
+                                                                            UdaDeclarationType::Integer(val_cond) => {
+
+                                                                                if *val < *val_cond {
+                                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                } else {
+                                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                }
+
+                                                                            },
+                                                                            _ => {
+                                                                                let msg = format!("You are trying to compare a integer with `{:?}`. It is wrong.", second_val);
+                                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                                            }
+                                                                        }
+
+                                                                    },
+
+                                                                    None => {
+                                                                        let msg = format!("Not found an Uda called `{}`.", uda);
+                                                                        panic!("{}", ZigurateError::NotFound(msg));
+                                                                    }
+
+                                                                }
+
+                                                            } 
+                                          
+                                                            _ => {
+                                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                            }
+                                                        }
+                                                    },
+                                                    UdaDeclarationType::IS_LESS_EQ => {
+                                                        match op_second_val {
+                                                            UdaDeclarationType::Integer(v) => {
+
+                                                                if *val <= *v {
+                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                } else {
+                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                }
+
+                                                            },
+                                                            UdaDeclarationType::Identifier(uda) => {
+
+                                                                let uda_found = self.uda_hash.get(uda);
+
+                                                                match uda_found {
+
+                                                                    Some(udaf) => {
+
+                                                                        let second_val = udaf.get("value").unwrap();
+
+                                                                        match second_val {
+                                                                            UdaDeclarationType::Integer(val_cond) => {
+
+                                                                                if *val <= *val_cond {
+                                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                } else {
+                                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                }
+
+                                                                            },
+                                                                            _ => {
+                                                                                let msg = format!("You are trying to compare a integer with `{:?}`. It is wrong.", second_val);
+                                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                                            }
+                                                                        }
+
+                                                                    },
+
+                                                                    None => {
+                                                                        let msg = format!("Not found an Uda called `{}`.", uda);
+                                                                        panic!("{}", ZigurateError::NotFound(msg));
+                                                                    }
+
+                                                                }
+
+                                                            } 
+                                          
+                                                            _ => {
+                                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                            }
+                                                        }
+                                                    },
+
+                                                    _ => {
+                                                        let msg = format!("Expected a RelationalOperator. Found Syntax Error.");
+                                                        panic!("{}", ZigurateError::SyntaxError(msg));
+                                                    }
+
+                                                }
+                                                
+                                            },
+                                            UdaDeclarationType::Floating(val) => {
+
+                                                if i_cond + 1 == suma.conditions.len() {
+                                                    continue;
+                                                }
+
+                                                let op_relational = &suma.conditions[i_cond+1];
+                                                let op_second_val = &suma.conditions[i_cond+2];
+
+                                                match op_relational {
+
+                                                    UdaDeclarationType::IS => {
+                                                        match op_second_val {
+                                                            UdaDeclarationType::Floating(v) => {
+
+                                                                if *val == *v {
+                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                } else {
+                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                }
+
+                                                            } ,
+
+                                                            UdaDeclarationType::Identifier(uda) => {
+
+                                                                let uda_found = self.uda_hash.get(uda);
+
+                                                                match uda_found {
+
+                                                                    Some(udaf) => {
+
+                                                                        let second_val = udaf.get("value").unwrap();
+
+                                                                        match second_val {
+                                                                            UdaDeclarationType::Floating(val_cond) => {
+
+                                                                                if *val == *val_cond {
+                                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                } else {
+                                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                }
+
+                                                                            },
+                                                                            _ => {
+                                                                                let msg = format!("You are trying to compare a floating with `{:?}`. It is wrong.", second_val);
+                                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                                            }
+                                                                        }
+
+                                                                    },
+
+                                                                    None => {
+                                                                        let msg = format!("Not found an Uda called `{}`.", uda);
+                                                                        panic!("{}", ZigurateError::NotFound(msg));
+                                                                    }
+
+                                                                }
+
+                                                            } 
+                                           
+                                                            _ => {
+                                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                            }
+                                                        }
+                                                    },
+                                                    UdaDeclarationType::IS_NOT => {
+                                                        match op_second_val {
+                                                            UdaDeclarationType::Floating(v) => {
+
+                                                                if *val != *v {
+                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                } else {
+                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                }
+
+                                                            }                                            
+                                                            
+                                                            UdaDeclarationType::Identifier(uda) => {
+
+                                                                let uda_found = self.uda_hash.get(uda);
+
+                                                                match uda_found {
+
+                                                                    Some(udaf) => {
+
+                                                                        let second_val = udaf.get("value").unwrap();
+
+                                                                        match second_val {
+                                                                            UdaDeclarationType::Floating(val_cond) => {
+
+                                                                                if *val != *val_cond {
+                                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                } else {
+                                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                }
+
+                                                                            },
+                                                                            _ => {
+                                                                                let msg = format!("You are trying to compare a floating with `{:?}`. It is wrong.", second_val);
+                                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                                            }
+                                                                        }
+
+                                                                    },
+
+                                                                    None => {
+                                                                        let msg = format!("Not found an Uda called `{}`.", uda);
+                                                                        panic!("{}", ZigurateError::NotFound(msg));
+                                                                    }
+
+                                                                }
+
+                                                            }
+                                                            _ => {
+                                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                            }
+                                                        }
+                                                    },
+                                                    UdaDeclarationType::IS_MORE => {
+                                                        match op_second_val {
+                                                            UdaDeclarationType::Floating(v) => {
+
+                                                                if *val > *v {
+                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                } else {
+                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                }
+
+                                                            },
+
+                                                            UdaDeclarationType::Identifier(uda) => {
+
+                                                                let uda_found = self.uda_hash.get(uda);
+
+                                                                match uda_found {
+
+                                                                    Some(udaf) => {
+
+                                                                        let second_val = udaf.get("value").unwrap();
+
+                                                                        match second_val {
+                                                                            UdaDeclarationType::Floating(val_cond) => {
+
+                                                                                if *val > *val_cond {
+                                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                } else {
+                                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                }
+
+                                                                            },
+                                                                            _ => {
+                                                                                let msg = format!("You are trying to compare a floating with `{:?}`. It is wrong.", second_val);
+                                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                                            }
+                                                                        }
+
+                                                                    },
+
+                                                                    None => {
+                                                                        let msg = format!("Not found an Uda called `{}`.", uda);
+                                                                        panic!("{}", ZigurateError::NotFound(msg));
+                                                                    }
+
+                                                                }
+
+                                                            }
+
+                                                            _ => {
+                                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                            }
+                                                        }
+                                                    },
+                                                    UdaDeclarationType::IS_MORE_EQ => {
+                                                        match op_second_val {
+                                                            UdaDeclarationType::Floating(v) => {
+
+                                                                if *val >= *v {
+                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                } else {
+                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                }
+
+                                                            },
+
+                                                            UdaDeclarationType::Identifier(uda) => {
+
+                                                                let uda_found = self.uda_hash.get(uda);
+
+                                                                match uda_found {
+
+                                                                    Some(udaf) => {
+
+                                                                        let second_val = udaf.get("value").unwrap();
+
+                                                                        match second_val {
+                                                                            UdaDeclarationType::Floating(val_cond) => {
+
+                                                                                if *val >= *val_cond {
+                                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                } else {
+                                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                }
+
+                                                                            },
+                                                                            _ => {
+                                                                                let msg = format!("You are trying to compare a floating with `{:?}`. It is wrong.", second_val);
+                                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                                            }
+                                                                        }
+
+                                                                    },
+
+                                                                    None => {
+                                                                        let msg = format!("Not found an Uda called `{}`.", uda);
+                                                                        panic!("{}", ZigurateError::NotFound(msg));
+                                                                    }
+
+                                                                }
+
+                                                            }
+
+                                                            _ => {
+                                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                            }
+                                                        }
+                                                    },
+                                                    UdaDeclarationType::IS_LESS => {
+                                                        match op_second_val {
+                                                            UdaDeclarationType::Floating(v) => {
+
+                                                                if *val < *v {
+                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                } else {
+                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                }
+
+                                                            },
+                                                            UdaDeclarationType::Identifier(uda) => {
+
+                                                                let uda_found = self.uda_hash.get(uda);
+
+                                                                match uda_found {
+
+                                                                    Some(udaf) => {
+
+                                                                        let second_val = udaf.get("value").unwrap();
+
+                                                                        match second_val {
+                                                                            UdaDeclarationType::Floating(val_cond) => {
+
+                                                                                if *val < *val_cond {
+                                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                } else {
+                                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                }
+
+                                                                            },
+                                                                            _ => {
+                                                                                let msg = format!("You are trying to compare a floating with `{:?}`. It is wrong.", second_val);
+                                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                                            }
+                                                                        }
+
+                                                                    },
+
+                                                                    None => {
+                                                                        let msg = format!("Not found an Uda called `{}`.", uda);
+                                                                        panic!("{}", ZigurateError::NotFound(msg));
+                                                                    }
+
+                                                                }
+
+                                                            }                                          
+                                                            _ => {
+                                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                            }
+                                                        }
+                                                    },
+                                                    UdaDeclarationType::IS_LESS_EQ => {
+                                                        match op_second_val {
+                                                            UdaDeclarationType::Floating(v) => {
+
+                                                                if *val <= *v {
+                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                } else {
+                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                    i_cond += 1;
+                                                                    continue;
+                                                                }
+
+                                                            },
+
+                                                            UdaDeclarationType::Identifier(uda) => {
+
+                                                                let uda_found = self.uda_hash.get(uda);
+
+                                                                match uda_found {
+
+                                                                    Some(udaf) => {
+
+                                                                        let second_val = udaf.get("value").unwrap();
+
+                                                                        match second_val {
+                                                                            UdaDeclarationType::Floating(val_cond) => {
+
+                                                                                if *val <= *val_cond {
+                                                                                    suma_operator_states.push(SumaOperator::TRUE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                } else {
+                                                                                    suma_operator_states.push(SumaOperator::FALSE);
+                                                                                    i_cond += 1;
+                                                                                    continue;
+                                                                                }
+
+                                                                            },
+                                                                            _ => {
+                                                                                let msg = format!("You are trying to compare a floating with `{:?}`. It is wrong.", second_val);
+                                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                                            }
+                                                                        }
+
+                                                                    },
+
+                                                                    None => {
+                                                                        let msg = format!("Not found an Uda called `{}`.", uda);
+                                                                        panic!("{}", ZigurateError::NotFound(msg));
+                                                                    }
+
+                                                                }
+
+                                                            }
+
+                                                            _ => {
+                                                                let msg = format!("You are trying to compare an `i32` with `{:?}`", op_second_val);
+                                                                panic!("{}", ZigurateError::TypeNotSupported(msg));
+                                                            }
+                                                        }
+                                                    },
+
+                                                    _ => {
+                                                        let msg = format!("Expected a RelationalOperator. Found Syntax Error.");
+                                                        panic!("{}", ZigurateError::SyntaxError(msg));
+                                                    }
+
+                                                }
+
+                                            }
+
+                                            _ => {
+
+                                            }
+                                        }
+
+                                    },
+                                    None => {
+                                        let msg = format!("An uda called `{}` not exist or not found.", name);
+                                        panic!("{}", ZigurateError::NotFound(msg));
+                                    }
+                                }
+
+                            }
+                            UdaDeclarationType::AND => {
+                                suma_operator_states.push(SumaOperator::AND);
+                                i_cond += 1;
+                                continue;
+                            },
+                            UdaDeclarationType::OR => {
+                                suma_operator_states.push(SumaOperator::OR);
+                                i_cond += 1;
+                                continue;
+                            }
+                            UdaDeclarationType::IS => {
+                                i_cond += 1;
+                                continue;
+                            }
+                            UdaDeclarationType::IS_NOT => {
+                                i_cond += 1;
+                                continue;
+                            }
+                            UdaDeclarationType::IS_MORE => {
+                                i_cond += 1;
+                                continue;
+                            }
+                            UdaDeclarationType::IS_MORE_EQ => {
+                                i_cond += 1;
+                                continue;
+                            }
+                            UdaDeclarationType::IS_LESS => {
+                                i_cond += 1;
+                                continue;
+                            }
+                            UdaDeclarationType::IS_LESS_EQ => {
+                                i_cond += 1;
+                                continue;
+                            }
+                            _ => {}
+                        }
+
+                    }
+
+
+                    let mut num_nvs_cond: Vec<i8> = vec![0; suma_operator_states.len()];
+                    let mut suma_vis = SumaVisualizer::new(suma_operator_states);
+
+                    let mut nv_up = 0;
+                    let mut nv_down = 0;
+
+                    manage_nv_condition(&mut num_nvs_cond, &mut suma_vis);
+                    
+                    for nv in num_nvs_cond.iter() {
+                        
+                        if *nv > 0 {
+                            nv_up += 1;
+                        } else {
+                            nv_down += 1;
+                        }
+                        
+                    }
+
+                    let curr_ip = self.ip;
+
+                    if nv_up > nv_down {
+                        for instr in suma.acts_suma.iter().rev() {
+                            self.instructions.insert(curr_ip, instr.clone());
+                        }
+                    } else {
+                        if suma.acts_li.len() == 0 {
+                            continue;
+                        }
+                        
+                        for instr in suma.acts_li.iter().rev() {
+                            self.instructions.insert(curr_ip, instr.clone());
+                        }
+                    }
+            
+                }
+
+
 
             }
 
