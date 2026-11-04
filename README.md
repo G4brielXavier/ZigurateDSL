@@ -19,11 +19,7 @@ silim("Hello World!")
 
 I designed it to speed-up my large worldbuilding search, I have a lot of characters, artifacts, items and others. With Zigurate, I can organize my world and search for what I want to find.
 
-
-## Documentation
-
-> In development with **VitePress**.
-
+[View documentation](https://ziguratedsl.vercel.app)
 
 ## Download
 
@@ -57,6 +53,7 @@ enki --version
 | Error treatments improvements | ❌ |
 | Local Database System | ❌ |
 | New CLI command: `enki galam --file` to up project to database for query | ❌ |
+| Official documentation with VitePress | ✅ |
 
 
 ## LICENSE
