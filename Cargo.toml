@@ -1,12 +1,13 @@
 [package]
 name = "zigurate"
+description = "A domain-specific language for game designers, writters and worldbuilders, focused on query and local database. Designed in Rust."
 version = "0.1.5"
 edition = "2024"
 repository = "https://github.com/G4brielXavier/ziguratelang"
 readme = "README.md"
 keyword = ["programming-language", "interpreter", "dsl"]
 categories = ["compilers"]
-documentation = "https://zigurate.space/"
+documentation = "https://ziguratedsl.vercel.app"
 
 [dependencies]
 clap = { version = "4.5.60", features = ["derive"] }

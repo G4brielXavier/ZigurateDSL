@@ -4,7 +4,7 @@
 
 > Nowadays, Zigurate UR1 is in deep development, so, some features still not arrive. That's why it is in beta.
 
-*A Executable Specification Language for Game designers, writters and worldbuilders, designed in **Rust***.
+*A domain-specific language for game designers, writters and worldbuilders, focused on query and local database. Designed in **Rust**.*
 
 
 ![banner](./imgs/ZigurateBanner.png)
@@ -40,7 +40,7 @@ I designed it to speed-up my large worldbuilding search, I have a lot of charact
 
 1. Open your terminal and execute:
 ```ps
-cargo install enki
+cargo install zigurate
 ```
 2. After install, open a new terminal and use:
 ```ps
