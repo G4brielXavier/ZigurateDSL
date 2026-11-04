@@ -2,6 +2,7 @@
 name = "zigurate"
 description = "A domain-specific language for game designers, writters and worldbuilders, focused on query and local database. Designed in Rust."
 version = "0.1.5"
+license = "MIT"
 edition = "2024"
 repository = "https://github.com/G4brielXavier/ziguratelang"
 readme = "README.md"
